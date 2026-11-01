@@ -4,7 +4,7 @@ import { OtherRequirement } from "@/domain/schemas";
 import { extractReply } from "@/llm/service";
 import { handle } from "../_lib";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const Input = z.object({
   text: z.string().trim().min(1).max(limits.replyChars),

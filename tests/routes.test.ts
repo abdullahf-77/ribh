@@ -103,6 +103,19 @@ describe("live path with a stubbed host", () => {
     expect((await res.json()).summarySource).toBe("template");
   });
 
+  it("reports insufficient credits and a rejected key clearly, without retrying", async () => {
+    live();
+    const credits = vi.fn(async () => new Response("detail", { status: 402 }));
+    vi.stubGlobal("fetch", credits);
+    const res = await call(requirements, { text: "أحتاج أكواب", today: TODAY }, "2.2.2.2");
+    expect(res.status).toBe(402);
+    expect((await res.json()).error.code).toBe("insufficient_credits");
+    expect(credits).toHaveBeenCalledTimes(1);
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("detail", { status: 401 })));
+    const rejected = await call(requirements, { text: "أحتاج أكواب", today: TODAY }, "2.2.2.2");
+    expect((await rejected.json()).error.code).toBe("auth");
+  });
+
   it("does not expose provider details on failure", async () => {
     live();
     vi.stubGlobal("fetch", vi.fn(async () => new Response("secret upstream detail", { status: 500 })));

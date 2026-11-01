@@ -2,10 +2,11 @@ import { CATEGORIES, SUPPORTED_LABELS, unitFor } from "@/domain/categories";
 import { analyzeDiscount, DiscountAnalysis } from "@/domain/discount";
 import { Decision } from "@/domain/decision";
 import { locateQuote, newOfferState, numberSupported, validateRawRequirements } from "@/domain/evidence";
-import { allowedNumbers, deterministicSummary, numbersIn, qty, sar, validateSummary, whyOffer } from "@/domain/explain";
+import { allowedNumbers, deterministicSummary, missingText, numbersIn, qty, reasonText, sar, validateSummary, whyOffer } from "@/domain/explain";
 import { fieldValue, OfferState, pushVersion, resolveOffer } from "@/domain/offer-state";
 import { buildReplyProposal } from "@/domain/replies";
 import { rfqGaps } from "@/domain/rfq";
+import { rawRequirements } from "@/demo/build";
 import { demoPlanFor } from "@/demo/chat-script";
 import { completeJson, LlmError, ProviderConfig } from "@/llm/provider";
 import { DemoUnavailable, draftRfq, extractOffer, extractReply } from "@/llm/service";
@@ -59,7 +60,7 @@ function decisionFacts(d: Decision) {
       purchaseQty: e.cost.purchaseQty, excess: e.cost.excess,
       totalSar: e.cost.totalHalalas == null ? null : e.cost.totalHalalas / 100,
       knownSubtotalSar: e.cost.knownSubtotalHalalas == null ? null : e.cost.knownSubtotalHalalas / 100,
-      comparableUnitSar: e.cost.comparableUnitSar, missingCost: e.cost.missing, failReasons: e.failReasons, blockers: e.blockers,
+      comparableUnitSar: e.cost.comparableUnitSar, missingCost: e.cost.missing.map(missingText), whyNotEligible: e.failReasons.map((r) => reasonText(r, e)), stillOpen: e.blockers.filter((b) => b !== "cost").map((r) => reasonText(r, e)),
       budget: e.budget.status, delivery: e.delivery,
     })),
   };
@@ -90,8 +91,10 @@ export function validatePlanReply(reply: string, asks: string[], state: Conversa
   if (!reply.trim() || reply.length > 700) return false;
   const known = new Set<string>([...knownFields(state), ...state.waived]);
   if (asks.some((f) => known.has(f))) return false;
-  const missing = missingFields(state);
-  if (asks.some((f) => !missing.includes(f))) return false;
+  // It may ask anything open that belongs to this product, but not another product's fields.
+  const category0 = state.requirements.category;
+  const own = new Set([...missingFields(state), ...(category0 ? CATEGORIES[category0].native : []), ...(category0 ? CATEGORIES[category0].specs.map((s) => `spec:${s.key}`) : [])]);
+  if (asks.some((f) => !own.has(f))) return false;
   // Cup wording has no place in a conversation about another product.
   const category = state.requirements.category;
   if (category && category !== "cups" && category !== "lids" && /أونص|الكوب|أكواب/.test(reply)) return false;
@@ -121,13 +124,18 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
   if (req.text != null) {
     const context = { state: stateForPrompt(state), history: req.history.slice(-HISTORY_TURNS).map((m) => ({ role: m.role, text: m.text.slice(0, HISTORY_CHARS) })), text: req.text };
     plan = cfg
-      ? await completeJson(cfg, { name: "chat_plan", system: PLAN_SYSTEM, user: planUser(context), schema: TurnPlanSchema, maxTokens: 3500 })
+      ? await completeJson(cfg, { name: "chat_plan", system: PLAN_SYSTEM, user: planUser(context), schema: TurnPlanSchema, maxTokens: 1800 })
       : demoPlanFor(req.text);
     if (!plan) throw new DemoUnavailable();
 
     if (plan.unsupportedProduct) {
       return { mode, replySource: "computed", blocks: [], patch: {}, reply: `لا أقارن «${plan.unsupportedProduct.slice(0, 60)}» حاليًا، لأن النتيجة لن تكون موثوقة. أدعم: ${SUPPORTED_LABELS}.` };
     }
+
+    // Supplier text is untrusted. A message carrying an offer or reply cannot change what the buyer requires,
+    // and a what-if question never proposes changing the confirmed quantity.
+    if (plan.offers.length || plan.supplierReply) plan = { ...plan, requirementUpdates: rawRequirements({}), generateRfq: null, showComparison: false, explainDecision: false, whatIfQuantity: null, showDiscount: false };
+    if (plan.whatIfQuantity != null) plan = { ...plan, requirementUpdates: { ...plan.requirementUpdates, quantity: { value: null, quote: null } } };
 
     /* 2. Validate the plan against what the user actually wrote. */
     const current = state.requirements.category;
@@ -173,7 +181,8 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
       if (loc) supplierReply = { offerId: plan.supplierReply.offerId, text: req.text.slice(loc.start, loc.end) };
       else notes.push("لم أتمكن من تحديد نص رد المورد بدقة. استخدم زر «أضف رد المورد» في بطاقة العرض.");
     }
-    rfq = plan.generateRfq;
+    // Drafting is only accepted when the message itself mentions a quotation request.
+    rfq = plan.generateRfq && /عرض سعر|عرض السعر|طلب عرض|تسعير|quot|rfq/i.test(req.text) ? plan.generateRfq : null;
     compare ||= plan.showComparison;
     explain = plan.explainDecision;
     discount = plan.showDiscount;
@@ -270,7 +279,7 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
   }
 
   /* 4. Computed answers: the engine decides, Llama only explains, and its text is verified. */
-  const wantsDecision = compare || explain || whatIf != null || discount;
+  const wantsDecision = !supplierReply && (compare || explain || whatIf != null || discount);
   let computedFallback: string | null = null;
   let factsForModel: unknown = null;
   let decisionForCheck: Decision | null = null;
@@ -327,7 +336,7 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
     reply = computedFallback;
     if (cfg && factsForModel && decisionForCheck) {
       try {
-        const out = await completeJson(cfg, { name: "chat_reply", system: RESPOND_SYSTEM, user: JSON.stringify(factsForModel), schema: ChatReplySchema, maxTokens: 900 });
+        const out = await completeJson(cfg, { name: "chat_reply", system: RESPOND_SYSTEM, user: JSON.stringify(factsForModel), schema: ChatReplySchema, maxTokens: 500 });
         if (validateSummary(out.reply, decisionForCheck, extraAllowed)) { reply = out.reply; replySource = "llama"; }
       } catch (e) {
         if (e instanceof LlmError && e.code === "invalid_model") throw e;

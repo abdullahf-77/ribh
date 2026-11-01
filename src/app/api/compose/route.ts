@@ -3,7 +3,7 @@ import type { Decision } from "@/domain/decision";
 import { composeNarrative } from "@/llm/service";
 import { handle } from "../_lib";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const Input = z.object({
   decision: z.object({ priority: z.enum(["cash", "unit", "earliest"]), verdict: z.object({ kind: z.string() }).loose(), evaluations: z.array(z.object({ offerId: z.string() }).loose()).max(3) }),

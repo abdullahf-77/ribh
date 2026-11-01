@@ -10,6 +10,8 @@ const MESSAGES: Record<string, { status: number; message: string }> = {
   invalid_input: { status: 400, message: "راجع المدخلات: بعض الحقول فارغة أو طويلة جدًا." },
   too_large: { status: 413, message: "النص طويل جدًا. اختصره ثم أعد المحاولة." },
   demo_unavailable: { status: 409, message: "وضع التجربة يحلل الأمثلة الجاهزة فقط. لتحليل نص آخر يلزم تفعيل Llama." },
+  insufficient_credits: { status: 402, message: "نفد رصيد خدمة التحليل. يمكنك متابعة التعبئة يدويًا، والتحليل يعود بعد شحن الرصيد." },
+  auth: { status: 503, message: "تعذر التحقق من مفتاح خدمة التحليل. يمكنك متابعة التعبئة يدويًا." },
   rate_limited: { status: 429, message: "الخدمة مشغولة الآن. انتظر دقيقة ثم أعد المحاولة." },
   rate_limited_local: { status: 429, message: "طلبات كثيرة في وقت قصير. انتظر دقيقة ثم أعد المحاولة." },
   timeout: { status: 504, message: "تأخر رد التحليل. أعد المحاولة، وإن تكرر فاختصر النص." },

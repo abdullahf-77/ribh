@@ -95,12 +95,12 @@ The workflow is stateless: no database or accounts, and offer text is never logg
 
 ### Reliability rules worth explaining
 
-- **Evidence:** every extracted value needs a quote that really occurs in the submitted text (only whitespace, tashkeel and direction marks are normalized). Without one, the value is rejected and stays unknown. A number absent from its quote is flagged for review.
+- **Evidence:** every extracted value needs support in the submitted text. Matching tolerates whitespace, tashkeel, direction marks, the Arabic "لل" prefix, and a shortened phrase whose words appear in order at most two words apart; a number written literally in the source counts as its own evidence. The evidence stored is always the real source span, never the model's words. Without support the value is rejected and stays unknown. The product category is a classification checked against the catalogue, so it needs no quote.
 - **Unknown is never zero:** missing data is `null` everywhere. A total appears only when every component is known; otherwise a known subtotal is shown, clearly marked incomplete.
 - **Eligibility gates before ranking:** offers are separated into confirmed, needs clarification, and failing. Only confirmed offers rank. With unresolved alternatives the recommendation stays conditional and never claims "cheapest".
 - **VAT:** never double-added, and no rate is assumed. For an exclusive price with no stated rate, the user may explicitly apply 15% ([ZATCA guideline](https://zatca.gov.sa/ar/HelpCenter/guidelines/Documents/VAT15.pdf), effective 2020-07-01); this is recorded as their assumption. The tax treatment of delivery and other charges is not assumed either.
 - **Replies are not authoritative:** a conflict with existing data blocks applying until the user chooses. Pasted replies are labelled as user-supplied, not authenticated.
-- **Untrusted text:** instructions inside an offer are treated as data, and the evidence check stops values a manipulated model might invent.
+- **Untrusted text:** instructions inside an offer are treated as data, and the evidence check stops values a manipulated model might invent. A message carrying an offer or reply can never change the buyer's requirements.
 - **Scenario edits** (quantity, budget, deadline, priority, consumption) recalculate locally with no model call. Changing "other requirements" shows that re-reading is needed.
 
 ## Llama provider
@@ -110,7 +110,7 @@ Checked 2026-11-01 against live data, because many tutorials are out of date:
 - [Groq's deprecation page](https://console.groq.com/docs/deprecations) lists all its Llama chat models as retired (Maverick on 2026-03-09, Scout on 2026-07-17, Llama 3.3 70B and 3.1 8B on 2026-08-16).
 - [OpenRouter's public models API](https://openrouter.ai/api/v1/models) lists `meta-llama/llama-4-maverick` with `structured_outputs` support, served by several hosts.
 
-The default is therefore OpenRouter with Llama 4 Maverick and strict JSON schema. The adapter works with any OpenAI-compatible host through environment variables. It refuses a model name without "llama", refuses a response reporting a different model, and on OpenRouter asks only for hosts that honor the schema.
+The default is therefore OpenRouter with Llama 4 Maverick and strict JSON schema. Requests try Parasail first (`LLAMA_HOST_ORDER`): measured on 2026-11-01, one offer took about 10 seconds there and about 66 on the default route, at about twice the cost per call. Other hosts of the same model remain as fallback, and a slow fallback can still cause timeouts. The adapter works with any OpenAI-compatible host through environment variables. It refuses a model name without "llama", refuses a response reporting a different model, and on OpenRouter asks only for hosts that honor the schema.
 
 **Licence:** Llama is used under Meta's [Llama 4 Community License](https://www.llama.com/llama4/license/). The app displays "Built with Llama" as that licence requires.
 
@@ -173,7 +173,7 @@ The app uses server routes, so it needs a Node host, not static hosting such as 
 2. Add `LLAMA_API_KEY` (and optionally `LLAMA_BASE_URL`, `LLAMA_MODEL`) under Environment Variables.
 3. Deploy, then confirm the header shows "التحليل يعمل عبر Llama" and run the full-journey example.
 
-Routes declare `maxDuration = 60`. The rate limiter is per server instance and best-effort, so set a spending limit on the provider key as well.
+Routes declare `maxDuration = 120`, and `.vercelignore` keeps env files out of the upload. The rate limiter is per server instance and best-effort, so set a spending limit on the provider key as well.
 
 ## Demo scenarios
 
@@ -199,13 +199,15 @@ All suppliers, prices and replies are fictional. No scenario contains a pre-sele
 ## Evaluation results
 
 - **Tests:** run `npm test` for the current count. Suites cover money, packaging, MOQ, lots, VAT, fees, compatibility, dates, ranking after edits, tiers (all-unit vs incremental, boundaries), coverage, evidence, schemas, RFQ, replies and conflicts, supplier isolation, the provider adapter, API routes, and every demo scenario.
-- **Live conversation:** **not verified yet.** No API key was available. Multi-turn logic is tested with a stubbed host and the labelled demo script, which prove the code paths but not Llama's actual behaviour. Run `npm run smoke:llama`.
+- **Live conversation:** `npm run smoke:llama` passed against real `meta-llama/llama-4-maverick` through OpenRouter on 2026-11-01, covering requirements, follow-ups, quotation, offers, comparison, why, what-if, a supplier reply that changed the recommendation, four other categories, an unsupported product and a category switch. Replies vary between runs, because the model is not deterministic.
 - **Live extraction quality:** **not measured yet.** No API key was available during development. `eval/heldout.ts` holds 19 synthetic examples kept apart from the demos, and `npm run eval:extraction` reports correct, missed, wrong and invented fields. No accuracy claim is made until it has been run.
 
 ## Known limitations
 
 - Live Llama behaviour is unverified until the smoke test runs. Prompts have not been tuned on real responses and may need adjusting, especially the planning prompt, which uses a large strict schema.
-- A turn with several offers makes several model calls, so a slow host can approach the 60-second route limit.
+- A turn with several offers makes several model calls and can take 20 to 40 seconds, or time out on a slow host. The user then gets a clear error and a retry button.
+- Model quality varies: it can miss a stated detail or ask something it could have read. Unsupported values are rejected, and everything is editable, but a missed value has to be supplied or corrected by the user.
+- When the key's credits run out, requests return a clear message, and manual entry and calculations keep working.
 - Demo data is synthetic and does not represent real Saudi prices or suppliers.
 - Scope is deliberately narrow: five product types, one product per comparison, text input only.
 - Free-text specs such as colour cannot be judged by code unless they match exactly, so they stay unknown for the buyer to resolve.

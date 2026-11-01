@@ -101,7 +101,11 @@ export function resolveOffer(o: OfferState): ResolvedOffer {
     charges: fieldValue<Charge[]>(o, "charges") ?? [],
     tiers: fieldValue<Tier[]>(o, "tiers") ?? [],
     otherRequirements: other,
-    openAmbiguities: o.ambiguities.filter((a) => !a.resolved).map(({ kind, text, field }) => ({ kind, text, field })),
+    // A contradiction always needs a decision. Any other note only blocks while the field it concerns is still unknown,
+    // so a passing remark from the model cannot hold back an offer whose facts are clear.
+    openAmbiguities: o.ambiguities
+      .filter((a) => !a.resolved && (a.kind === "contradiction" || (a.field != null && o.fields[a.field] != null && fieldValue(o, a.field) == null)))
+      .map(({ kind, text, field }) => ({ kind, text, field })),
   };
 }
 

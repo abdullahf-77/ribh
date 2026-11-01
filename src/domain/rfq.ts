@@ -129,6 +129,8 @@ export function validateRfqDraft(text: string, f: RfqFacts, fullBudget: number |
   for (const r of RFQ_REQUESTS) if (!r.pattern.test(text)) { issues.push("missing_request"); break; }
   if (f.lid === "مطلوبة" && !/غطاء|أغطية|اغطية|غطا/.test(text)) issues.push("missing_lid");
   if (f.lid == null && /أغطية|غطاء/.test(text)) issues.push("missing_lid");
+  if (f.lid === "مطلوبة" && /(بدون|دون|بلا)\s+(ال)?(غطاء|أغطية|اغطية)/.test(text)) issues.push("missing_lid");
+  if (f.print === "مطلوبة" && /(بدون|دون|بلا)\s+(ال)?طباع/.test(text)) issues.push("missing_print");
   if (f.print === "مطلوبة" && !/طباع/.test(text)) issues.push("missing_print");
   if (f.print == null && /طباع/.test(text)) issues.push("missing_print");
   if (f.city && !text.includes(f.city)) issues.push("missing_city");

@@ -1,4 +1,4 @@
-import { CATEGORIES, CategoryId, coerceSpec, NATIVE_TO_OFFER, specDef } from "./categories";
+import { CATEGORIES, CATEGORY_IDS, CategoryId, coerceSpec, NATIVE_TO_OFFER, specDef } from "./categories";
 import { foldDigits } from "./evidence-text";
 import type { Evidence, FieldVersion, OfferState, VersionFlag } from "./offer-state";
 import { SCALAR_FIELDS } from "./offer-state";
@@ -21,7 +21,32 @@ function normalizeWithMap(text: string): { out: string; map: number[] } {
     out += c;
     map.push(i);
   }
+  // "للرياض" is "ل" + "الرياض": the same length, so positions still map back to the source.
+  out = out.replace(/(^| )لل/g, "$1ال");
   return { out, map };
+}
+
+/**
+ * The model often shortens a phrase, writing "شامل الضريبة" for "شامل الغطاء والضريبة". Each of its words must
+ * still appear in order, at most two words apart. The evidence kept is the real source span, never the model's words.
+ */
+function locateWords(out: string, map: number[], q: string): { start: number; end: number } | null {
+  const strip = (raw: string) => { const w = raw.replace(/[.,،؛:!؟()«»"]+$/u, ""); return w.length > 3 && w.startsWith("و") ? w.slice(1) : w; };
+  const want = q.split(" ").map(strip);
+  if (want.length < 2 || want.length > 12) return null;
+  const tokens = [...out.matchAll(/\S+/g)].map((m) => ({ word: strip(m[0]), start: m.index, end: m.index + m[0].length }));
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i].word !== want[0]) continue;
+    let at = i;
+    let ok = true;
+    for (let k = 1; k < want.length && ok; k++) {
+      let next = -1;
+      for (let j = at + 1; j <= at + 3 && j < tokens.length; j++) if (tokens[j].word === want[k]) { next = j; break; }
+      if (next < 0) ok = false; else at = next;
+    }
+    if (ok) return { start: map[tokens[i].start], end: map[tokens[at].end - 1] + 1 };
+  }
+  return null;
 }
 
 export function locateQuote(source: string, quote: string): { start: number; end: number } | null {
@@ -29,7 +54,7 @@ export function locateQuote(source: string, quote: string): { start: number; end
   if (!q) return null;
   const { out, map } = normalizeWithMap(source);
   const idx = out.indexOf(q);
-  if (idx < 0) return null;
+  if (idx < 0) return locateWords(out, map, q);
   return { start: map[idx], end: map[idx + q.length - 1] + 1 };
 }
 
@@ -59,13 +84,24 @@ export function numberSupported(quote: string, value: number): boolean {
 
 type Checked = { value: unknown; evidence: Evidence | null; flag: VersionFlag };
 
+/** Shared fields the model sometimes repeats inside specs. They have their own validated slots. */
+const NATIVE_KEYS = new Set(["sizeOz", "cupSizeOz", "use", "material", "wall", "lid", "lids", "print", "printing"]);
+const isNullWord = (v: unknown) => typeof v === "string" && (v.trim() === "" || v.trim().toLowerCase() === "null");
+
 export function checkField(sourceId: string, text: string, field: { value: unknown; quote: string | null }): Checked {
-  if (field.value == null) return { value: null, evidence: null, flag: null };
-  const loc = field.quote ? locateQuote(text, field.quote) : null;
+  if (field.value == null || isNullWord(field.value)) return { value: null, evidence: null, flag: null };
+  if (field.quote != null && isNullWord(field.quote)) field = { ...field, quote: null };
+  let loc = field.quote ? locateQuote(text, field.quote) : null;
+  // The model sometimes rewrites digits in its quote. A number written literally in the source is its own evidence.
+  if (!loc && typeof field.value === "number") {
+    const folded = foldDigits(text).replace(/,/g, "٬");
+    const m = new RegExp(`(?<![\\d.])${String(field.value).replace(".", "\\.")}(?![\\d.])`).exec(folded);
+    if (m) loc = { start: m.index, end: m.index + m[0].length };
+  }
   // No verifiable quote: the value is rejected and stays unknown.
   if (!loc) return { value: null, evidence: null, flag: "unsupported_quote" };
-  const evidence = { sourceId, quote: field.quote!, ...loc };
-  if (typeof field.value === "number" && !numberSupported(field.quote!, field.value)) {
+  const evidence = { sourceId, quote: text.slice(loc.start, loc.end), ...loc };
+  if (typeof field.value === "number" && !numberSupported(evidence.quote, field.value)) {
     return { value: field.value, evidence, flag: "value_not_in_quote" };
   }
   return { value: field.value, evidence, flag: null };
@@ -83,6 +119,8 @@ export function validateRawOffer(raw: RawOffer, sourceId: string, text: string, 
   const rejected: ValidatedOffer["rejected"] = [];
 
   for (const key of SCALAR_FIELDS) {
+    // The product category is a classification, checked against the catalogue, not a quotation.
+    if (key === "productCategory") { fields[key] = { value: raw[key].value, evidence: null, flag: null }; continue; }
     const checked = checkField(sourceId, text, raw[key]);
     if (checked.flag === "unsupported_quote") rejected.push({ field: key, quote: raw[key].quote });
     fields[key] = checked;
@@ -108,6 +146,7 @@ export function validateRawOffer(raw: RawOffer, sourceId: string, text: string, 
   }
 
   for (const s of raw.specs) {
+    if (isNullWord(s.value) || NATIVE_KEYS.has(s.key)) continue;
     // Only keys of this category survive, so another product's specification cannot leak in.
     const def = specDef(s.key, category);
     const value = def ? coerceSpec(def, s.value) : null;
@@ -155,7 +194,8 @@ export function validateRawRequirements(raw: RawRequirements, text: string, toda
   const evidence: RequirementEvidence = {};
   const specEvidence: Record<string, string> = {};
   const rejected: string[] = [];
-  const keys = ["category", "product", "quantity", "sizeOz", "material", "wall", "use", "lid", "print", "city", "requiredDate", "budgetSar", "budgetIncludesDelivery", "budgetIncludesVat"] as const;
+  req.category = raw.category.value; // A classification, checked against the catalogue, not a quotation.
+  const keys = ["product", "quantity", "sizeOz", "material", "wall", "use", "lid", "print", "city", "requiredDate", "budgetSar", "budgetIncludesDelivery", "budgetIncludesVat"] as const;
   for (const key of keys) {
     const checked = checkField("requirement", text, raw[key]);
     if (checked.flag === "unsupported_quote") rejected.push(key);
@@ -164,6 +204,8 @@ export function validateRawRequirements(raw: RawRequirements, text: string, toda
     (req as Record<string, unknown>)[key] = checked.value;
     evidence[key] = raw[key].quote!;
   }
+  // A category code is not a description of the product.
+  if (req.product && (CATEGORY_IDS as readonly string[]).includes(req.product)) { req.product = null; delete evidence.product; }
   if (req.requiredDate && !/^\d{4}-\d{2}-\d{2}$/.test(req.requiredDate)) req.requiredDate = null;
   if (!req.requiredDate && raw.requiredWithinDays.value != null) {
     const checked = checkField("requirement", text, raw.requiredWithinDays);
@@ -176,6 +218,7 @@ export function validateRawRequirements(raw: RawRequirements, text: string, toda
   }
   if (req.quantity != null && (!Number.isInteger(req.quantity) || req.quantity <= 0)) { req.quantity = null; rejected.push("quantity"); }
   for (const s of raw.specs) {
+    if (isNullWord(s.value) || NATIVE_KEYS.has(s.key)) continue;
     const def = specDef(s.key, knownCategory ?? req.category);
     const value = def ? coerceSpec(def, s.value) : null;
     if (!def || value == null) { rejected.push(`spec:${s.key}`); continue; }
@@ -192,6 +235,8 @@ export function validateRawRequirements(raw: RawRequirements, text: string, toda
     }
   }
   raw.other.forEach((o, i) => {
+    // Delivery, tax, budget, quantity and the like have their own fields. Repeating one here would wrongly fail offers.
+    if (/توصيل|تسليم|ضريب|ميزاني|كمية|موعد|مقاس|غطاء|أغطية|طباع|delivery|vat|budget/i.test(o.text)) return;
     if (locateQuote(text, o.quote)) req.other.push({ id: `R${i + 1}`, text: o.text, level: o.level });
   });
   return { requirements: req, evidence, specEvidence, rejected };

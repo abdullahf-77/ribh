@@ -28,7 +28,15 @@ async function main() {
   const history: { role: "user" | "assistant"; text: string }[] = [];
 
   const step = async (label: string, input: { text?: string; event?: TurnEvent }): Promise<TurnResponse> => {
-    const r = await runTurn({ text: input.text ?? null, event: input.event ?? null, history, state, today }, cfg);
+    let r: TurnResponse;
+    const started = Date.now();
+    try {
+      r = await runTurn({ text: input.text ?? null, event: input.event ?? null, history, state, today }, cfg);
+    } catch (e) {
+      check(false, `${label}: ${(e as { code?: string }).code ?? (e as Error).message}`);
+      return { mode: "live", reply: "", replySource: "computed", blocks: [], patch: {} };
+    }
+    console.log(`(${Date.now() - started}ms)`);
     const p = r.patch;
     state = { ...state, ...(p.requirements && { requirements: p.requirements }), ...(p.reqEvidence && { reqEvidence: p.reqEvidence }), ...(p.waived && { waived: p.waived }), ...(p.offers && { offers: p.offers }), ...(p.rejected && { rejected: p.rejected }), ...(p.priority && { priority: p.priority }), ...(p.analyzedOtherKey && { analyzedOtherKey: p.analyzedOtherKey }), ...(p.scenarioQuantity !== undefined && { scenarioQuantity: p.scenarioQuantity }) };
     if (input.text) history.push({ role: "user", text: input.text });
@@ -63,7 +71,8 @@ async function main() {
   state = { ...state, confirmedOfferIds: state.offers.map((o) => o.id) };
   const compared = await step("comparison", { event: { type: "compare" } });
   check(compared.blocks.some((b) => b.type === "comparison"), "comparison produced");
-  console.log("verdict:", currentDecision(state)?.verdict, currentDecision(state)?.evaluations.map((e) => [e.label, e.category, e.cost.totalHalalas]));
+  console.log("requirements:", JSON.stringify(state.requirements));
+  console.log("verdict:", currentDecision(state)?.verdict, JSON.stringify(currentDecision(state)?.evaluations.map((e) => [e.label, e.category, e.cost.totalHalalas, e.failReasons, e.blockers, e.cost.missing])));
 
   const why = await step("why", { text: "ليش هذا المورد؟" });
   check(why.replySource === "llama", "explanation passed verification");
@@ -95,9 +104,12 @@ async function main() {
     check(state.requirements.sizeOz == null || c === "lids", `${c}: no cup size leaked`);
   }
 
+  state = initialState(today);
+  history.length = 0;
   const unsupported = await step("unsupported product", { text: "أبي أقارن عروض حبوب قهوة" });
   check(unsupported.reply.includes("لا أقارن"), "unsupported product refused");
 
+  history.length = 0;
   state = { ...initialState(today), requirements: { ...initialState(today).requirements, category: "cups", product: "أكواب", quantity: 3000 } };
   const switching = await step("switch request", { text: "طيب أبي الحين أقارن مناديل" });
   check(switching.blocks.some((b) => b.type === "switch_category"), "switch asks before replacing");

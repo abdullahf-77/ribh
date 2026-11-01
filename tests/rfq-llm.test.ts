@@ -103,6 +103,15 @@ describe("provider adapter", () => {
     await expect(call(vi.fn(), { ...base, model: "openai/gpt-oss-120b" })).rejects.toMatchObject({ code: "invalid_model" });
   });
 
+  it("routes to the preferred host of the same model", async () => {
+    const fetcher = vi.fn(async () => ok({ a: 1 }));
+    await call(fetcher, { ...base, baseUrl: "https://openrouter.ai/api/v1", hostOrder: ["parasail"] });
+    const body = JSON.parse((fetcher.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.provider).toEqual({ require_parameters: true, order: ["parasail"] });
+    expect(body.model).toBe("meta-llama/llama-4-maverick");
+    expect(body.models).toBeUndefined();
+  });
+
   it("refuses a response served by another model", async () => {
     await expect(call(vi.fn(async () => ok({ a: 1 }, "qwen/qwen3"))))
       .rejects.toMatchObject({ code: "wrong_model" });

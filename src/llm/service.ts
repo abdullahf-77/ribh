@@ -27,14 +27,14 @@ function fromDemo<T>(fixture: T | null): T {
 
 export async function extractRequirements(text: string, today: string, cfg = readConfig()) {
   const raw: RawRequirements = cfg
-    ? await completeJson(cfg, { name: "requirements", system: REQUIREMENTS_SYSTEM, user: requirementsUser(text), schema: RawRequirementsSchema, maxTokens: 1500 })
+    ? await completeJson(cfg, { name: "requirements", system: REQUIREMENTS_SYSTEM, user: requirementsUser(text), schema: RawRequirementsSchema, maxTokens: 1200 })
     : fromDemo(demoRequirementsFor(text));
   return { ...validateRawRequirements(raw, text, today), mode: (cfg ? "live" : "demo") as Mode };
 }
 
 export async function extractOffer(offerId: string, text: string, other: OtherRequirement[], cfg = readConfig(), category: CategoryId | null = null) {
   const raw: RawOffer = cfg
-    ? await completeJson(cfg, { name: "offer", system: OFFER_SYSTEM, user: offerUser(text, other, category), schema: RawOfferSchema, maxTokens: 3500 })
+    ? await completeJson(cfg, { name: "offer", system: OFFER_SYSTEM, user: offerUser(text, other, category), schema: RawOfferSchema, maxTokens: 1800 })
     : fromDemo(demoOfferFor(text));
   const validated = validateRawOffer(raw, `offer:${offerId}`, text, other.map((o) => o.id), category);
   return { validated, mode: (cfg ? "live" : "demo") as Mode };
@@ -42,7 +42,7 @@ export async function extractOffer(offerId: string, text: string, other: OtherRe
 
 export async function extractReply(text: string, current: Record<string, unknown>, questions: string[], other: OtherRequirement[], cfg = readConfig(), category: CategoryId | null = null) {
   const raw: RawOffer = cfg
-    ? await completeJson(cfg, { name: "reply", system: REPLY_SYSTEM, user: replyUser(text, current, questions, other, category), schema: RawOfferSchema, maxTokens: 3000 })
+    ? await completeJson(cfg, { name: "reply", system: REPLY_SYSTEM, user: replyUser(text, current, questions, other, category), schema: RawOfferSchema, maxTokens: 1800 })
     : fromDemo(demoReplyFor(text));
   return { raw, mode: (cfg ? "live" : "demo") as Mode };
 }
@@ -54,7 +54,7 @@ export async function draftRfq(req: Requirements, includeBudget: boolean, cfg: P
   const template = deterministicRfq(facts);
   if (!cfg) return { message: template, source: "template" as DraftSource, reason: "demo" };
   try {
-    const { message } = await completeJson(cfg, { name: "rfq", system: RFQ_SYSTEM, user: JSON.stringify(facts), schema: RfqDraftSchema, maxTokens: 900 });
+    const { message } = await completeJson(cfg, { name: "rfq", system: RFQ_SYSTEM, user: JSON.stringify(facts), schema: RfqDraftSchema, maxTokens: 600 });
     const issues = validateRfqDraft(message, facts, req.budgetSar);
     if (!issues.length) return { message, source: "llama" as DraftSource, reason: null };
     return { message: template, source: "template" as DraftSource, reason: "validation" };

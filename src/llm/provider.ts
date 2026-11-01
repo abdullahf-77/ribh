@@ -3,9 +3,9 @@ import { z } from "zod";
 /* The only module that knows how to talk to the model host. Any OpenAI-compatible endpoint serving
    Llama works; the model name is checked so another family can never be substituted by accident. */
 
-export type ProviderConfig = { apiKey: string; baseUrl: string; model: string; timeoutMs: number; maxAttempts: number };
+export type ProviderConfig = { apiKey: string; baseUrl: string; model: string; timeoutMs: number; maxAttempts: number; hostOrder?: string[] };
 
-export type LlmErrorCode = "not_configured" | "invalid_model" | "timeout" | "rate_limited" | "upstream" | "malformed" | "wrong_model";
+export type LlmErrorCode = "insufficient_credits" | "auth" | "not_configured" |"invalid_model" | "timeout" | "rate_limited" | "upstream" | "malformed" | "wrong_model";
 export class LlmError extends Error {
   constructor(public code: LlmErrorCode) { super(code); }
 }
@@ -20,8 +20,10 @@ export function readConfig(env: Record<string, string | undefined> = process.env
     apiKey,
     baseUrl: (env.LLAMA_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/$/, ""),
     model: env.LLAMA_MODEL?.trim() || DEFAULT_MODEL,
-    timeoutMs: Number(env.LLAMA_TIMEOUT_MS) || 40_000,
+    timeoutMs: Number(env.LLAMA_TIMEOUT_MS) || 30_000,
     maxAttempts: Number(env.LLAMA_MAX_ATTEMPTS) || 2,
+    // Measured 2026-11-01: Parasail about 10s per offer, the default route about 66s, for the same model.
+    hostOrder: (env.LLAMA_HOST_ORDER ?? "parasail").split(",").map((h) => h.trim()).filter(Boolean),
   };
 }
 
@@ -69,12 +71,14 @@ export async function completeJson<T>(cfg: ProviderConfig, req: CompletionReques
             { role: "user", content: req.user + repairNote },
           ],
           response_format: { type: "json_schema", json_schema: { name: req.name, strict: true, schema: jsonSchema } },
-          // OpenRouter: only route to hosts that honor the schema, and never fall back to another model.
-          ...(cfg.baseUrl.includes("openrouter.ai") ? { provider: { require_parameters: true }, models: undefined } : {}),
+          // OpenRouter: try the fastest measured host first, then other hosts of this same model. Never another model.
+          ...(cfg.baseUrl.includes("openrouter.ai") ? { provider: { require_parameters: true, ...(cfg.hostOrder?.length ? { order: cfg.hostOrder } : {}) } } : {}),
         }),
       });
       if (res.status === 429) { lastError = new LlmError("rate_limited"); continue; }
       if (res.status >= 500) { lastError = new LlmError("upstream"); continue; }
+      if (res.status === 402) throw new LlmError("insufficient_credits");
+      if (res.status === 401 || res.status === 403) throw new LlmError("auth");
       if (!res.ok) throw new LlmError("upstream");
 
       const body = (await res.json()) as { model?: string; choices?: { message?: { content?: string } }[] };
