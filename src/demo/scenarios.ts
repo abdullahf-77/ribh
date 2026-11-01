@@ -1,4 +1,5 @@
 import type { RawOffer, RawRequirements } from "@/domain/schemas";
+import { categoryScenarios } from "./category-scenarios";
 import { rawOffer, rawRequirements, v } from "./build";
 
 /* All suppliers, prices and replies here are fictional. No scenario names a winner for the app to show:
@@ -25,6 +26,7 @@ export type Scenario = {
 
 const baseReq = (text: string, extra: Partial<RawRequirements> = {}) =>
   rawRequirements({
+    category: v("cups" as const, "كوب"),
     product: v("أكواب مشروبات ساخنة", "كوب للمشروبات الساخنة"),
     quantity: v(3000, "٣٠٠٠ كوب"),
     sizeOz: v(8, "٨ أونصات"),
@@ -35,7 +37,7 @@ const baseReq = (text: string, extra: Partial<RawRequirements> = {}) =>
 
 const REQ_BASIC = "أحتاج ٣٠٠٠ كوب للمشروبات الساخنة، مقاس ٨ أونصات، التوصيل إلى الرياض.";
 
-export const scenarios: Scenario[] = [
+const cupScenarios: Scenario[] = [
   {
     id: "delivery-flip",
     title: "الأرخص إعلانًا يغلى بعد التوصيل",
@@ -265,6 +267,7 @@ export const scenarios: Scenario[] = [
     lesson: "ثلاثة عروض: أحدها بخصم كمية صريح، وآخر لا يوضح الأغطية. ألصق رد المورد وشاهد تغيّر القرار.",
     requirementText: "مقهى يحتاج ٣٠٠٠ كوب ورقي للمشروبات الساخنة، مقاس ٨ أونصات، مع أغطية، التوصيل إلى الرياض خلال ١٠ أيام، وميزانيتي ١٥٠٠ ريال شاملة التوصيل والضريبة.",
     rawRequirements: rawRequirements({
+      category: v("cups", "كوب ورقي"),
       product: v("أكواب ورقية للمشروبات الساخنة", "كوب ورقي للمشروبات الساخنة"),
       quantity: v(3000, "٣٠٠٠ كوب"), sizeOz: v(8, "٨ أونصات"), material: v("paper", "كوب ورقي"), use: v("hot", "للمشروبات الساخنة"),
       lid: v("required", "مع أغطية"), city: v("الرياض", "الرياض"), requiredWithinDays: v(10, "خلال ١٠ أيام"), budgetSar: v(1500, "١٥٠٠ ريال"),
@@ -305,3 +308,5 @@ export const scenarios: Scenario[] = [
     expected: { verdict: "recommend_open", winnerIndex: 0, categories: ["confirmed", "clarify", "fail"], totalsSar: [1440, null, 1620], note: "الديرة تتجاوز الميزانية. بعد رد الربوة يصبح إجماليها 1200 فتتغير التوصية من الوفرة إلى الربوة." },
   },
 ];
+
+export const scenarios: Scenario[] = [...cupScenarios, ...categoryScenarios];

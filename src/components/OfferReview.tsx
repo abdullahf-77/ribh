@@ -5,7 +5,7 @@ import { vatAssumption } from "@/config/brand";
 import { foldDigits } from "@/domain/evidence";
 import { activeVersion, correctField, fieldValue, OfferState, resolveAmbiguitiesFor, SourceText } from "@/domain/offer-state";
 import type { Charge, Requirements, Tier } from "@/domain/schemas";
-import { displayValue, FIELD_GROUPS, fieldLabel, FIELDS, FieldSpec } from "@/lib/fields";
+import { FIELD_GROUPS, fieldLabel, fieldsFor, FieldSpec } from "@/lib/fields";
 import { boolOptions, Button, Card, Chip, fromBool, Note, parseNumber, toBool } from "./ui";
 
 export function SourceBlock({ source, highlight }: { source: SourceText; highlight: { start: number; end: number } | null }) {
@@ -133,7 +133,7 @@ export function OfferReview({ offer, onOffer, requirements, rejected, tick }: {
             <fieldset key={group}>
               <legend className="mb-1 text-sm font-semibold">{group}</legend>
               <div className="divide-y divide-line rounded-s border border-line">
-                {FIELDS.filter((f) => f.group === group).map((spec) => {
+                {fieldsFor(requirements.category).filter((f) => f.group === group).map((spec) => {
                   const version = activeVersion(offer, spec.key);
                   const selected = focus === spec.key;
                   return (
@@ -199,7 +199,7 @@ export function OfferReview({ offer, onOffer, requirements, rejected, tick }: {
               <ul className="space-y-2">
                 {tiers.map((t, i) => (
                   <li key={i} className="rounded-s border border-line p-2 text-sm">
-                    من {t.minQty} {t.qtyUnit === "package" ? "عبوة" : "كوب"}: {t.price} ريال {t.priceBasis === "per_package" ? "للعبوة" : "للحبة"}
+                    من {t.minQty} {t.qtyUnit === "package" ? "عبوة" : "وحدة"}: {t.price} ريال {t.priceBasis === "per_package" ? "للعبوة" : "للحبة"}
                     {t.quote && <p className="text-xs text-muted" dir="auto">الدليل: «{t.quote}»</p>}
                     {t.condition && (
                       <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -218,32 +218,4 @@ export function OfferReview({ offer, onOffer, requirements, rejected, tick }: {
   );
 }
 
-export function ReviewStep({ offers, onOffers, requirements, rejected, tick, onNext, onBack }: {
-  offers: OfferState[]; onOffers: (o: OfferState[]) => void; requirements: Requirements; rejected: Record<string, { field: string; quote: string | null }[]>; tick: () => number; onNext: () => void; onBack: () => void;
-}) {
-  const [index, setIndex] = useState(0);
-  const offer = offers[Math.min(index, offers.length - 1)];
-  if (!offer) return <Note tone="warn" title="لا توجد عروض بعد">عد إلى خطوة العروض لإضافتها. <button type="button" className="underline" onClick={onBack}>عد للعروض</button></Note>;
-  return (
-    <div>
-      <p className="mb-3 text-sm text-muted">هذا ما فهمناه من كل عرض. صحّح ما يلزم؛ يبقى الأصل محفوظًا، والحقل الفارغ يبقى «غير معروف» ولا يُحسب صفرًا.</p>
-      <div role="tablist" aria-label="العروض" className="mb-3 flex flex-wrap gap-2">
-        {offers.map((o, i) => (
-          <button type="button" role="tab" key={o.id} aria-selected={i === index} onClick={() => setIndex(i)}
-            className={`min-h-11 rounded-s border px-3 py-1 text-sm transition ${i === index ? "border-accent bg-accent-soft font-semibold text-accent" : "border-line bg-surface"}`}>
-            <bdi>{fieldValue<string>(o, "supplierName") || o.label}</bdi>
-          </button>
-        ))}
-      </div>
-      <OfferReview key={offer.id} offer={offer} requirements={requirements} rejected={rejected[offer.id] ?? []} tick={tick}
-        onOffer={(next) => onOffers(offers.map((o) => (o.id === next.id ? next : o)))} />
-      <div className="mt-5 flex flex-wrap gap-2">
-        <Button variant="primary" disabled={offers.length < 2} onClick={onNext}>قارن العروض</Button>
-        <Button onClick={onBack}>عد إلى نصوص العروض</Button>
-      </div>
-      {offers.length < 2 && <p className="mt-2 text-xs text-muted">تحتاج عرضين مكتملي الإدخال على الأقل.</p>}
-    </div>
-  );
-}
 
-export { displayValue };

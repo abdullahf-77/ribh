@@ -9,7 +9,7 @@ export function Button({ variant = "secondary", busy, children, className = "", 
   const look = {
     primary: "bg-accent text-accent-ink hover:brightness-110",
     secondary: "bg-surface text-ink border border-line hover:bg-sunken",
-    ghost: "text-accent hover:bg-accent-soft",
+    ghost: "text-accent-text hover:bg-accent-soft",
   }[variant];
   return (
     <button type="button" {...rest} disabled={disabled || busy} aria-busy={busy || undefined}
@@ -105,7 +105,7 @@ export function Chip({ tone = "neutral", children }: { tone?: Tone; children: Re
     not: "bg-not-soft text-not",
     unknown: "hatch text-unknown font-medium",
     neutral: "bg-sunken text-muted",
-    accent: "bg-accent-soft text-accent",
+    accent: "bg-accent-soft text-accent-text",
   }[tone];
   return <span className={`inline-flex items-center gap-1 rounded-s px-2 py-0.5 text-xs font-medium ${look}`}>{children}</span>;
 }

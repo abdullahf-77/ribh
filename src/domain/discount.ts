@@ -103,7 +103,7 @@ export function analyzeDiscount(o: ResolvedOffer, req: Requirements, inputs: Inv
     const q = tierOrderQty(t, upp);
     if (q == null) continue;
     if (q <= (baselineCost.purchaseQty ?? req.quantity)) continue;
-    const s = build(`tier:${q}`, `شريحة ${q.toLocaleString("en-US")} كوب فأكثر`, q, false);
+    const s = build(`tier:${q}`, `شريحة ${q.toLocaleString("en-US")} وحدة فأكثر`, q, false);
     const actual = s.cost.purchaseQty ?? q;
     if (seen.has(actual)) continue;
     seen.add(actual);

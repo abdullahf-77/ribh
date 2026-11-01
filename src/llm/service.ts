@@ -1,3 +1,4 @@
+import type { CategoryId } from "@/domain/categories";
 import { allowedNumbers, deterministicSummary, numbersIn, validateSummary } from "@/domain/explain";
 import type { Decision } from "@/domain/decision";
 import { validateRawOffer, validateRawRequirements } from "@/domain/evidence";
@@ -31,17 +32,17 @@ export async function extractRequirements(text: string, today: string, cfg = rea
   return { ...validateRawRequirements(raw, text, today), mode: (cfg ? "live" : "demo") as Mode };
 }
 
-export async function extractOffer(offerId: string, text: string, other: OtherRequirement[], cfg = readConfig()) {
+export async function extractOffer(offerId: string, text: string, other: OtherRequirement[], cfg = readConfig(), category: CategoryId | null = null) {
   const raw: RawOffer = cfg
-    ? await completeJson(cfg, { name: "offer", system: OFFER_SYSTEM, user: offerUser(text, other), schema: RawOfferSchema, maxTokens: 3500 })
+    ? await completeJson(cfg, { name: "offer", system: OFFER_SYSTEM, user: offerUser(text, other, category), schema: RawOfferSchema, maxTokens: 3500 })
     : fromDemo(demoOfferFor(text));
-  const validated = validateRawOffer(raw, `offer:${offerId}`, text, other.map((o) => o.id));
+  const validated = validateRawOffer(raw, `offer:${offerId}`, text, other.map((o) => o.id), category);
   return { validated, mode: (cfg ? "live" : "demo") as Mode };
 }
 
-export async function extractReply(text: string, current: Record<string, unknown>, questions: string[], other: OtherRequirement[], cfg = readConfig()) {
+export async function extractReply(text: string, current: Record<string, unknown>, questions: string[], other: OtherRequirement[], cfg = readConfig(), category: CategoryId | null = null) {
   const raw: RawOffer = cfg
-    ? await completeJson(cfg, { name: "reply", system: REPLY_SYSTEM, user: replyUser(text, current, questions, other), schema: RawOfferSchema, maxTokens: 3000 })
+    ? await completeJson(cfg, { name: "reply", system: REPLY_SYSTEM, user: replyUser(text, current, questions, other, category), schema: RawOfferSchema, maxTokens: 3000 })
     : fromDemo(demoReplyFor(text));
   return { raw, mode: (cfg ? "live" : "demo") as Mode };
 }

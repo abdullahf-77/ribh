@@ -25,13 +25,13 @@ function Conclusion({ a }: { a: DiscountAnalysis }) {
     case "no_larger_option":
       return <Note tone="info">لا توجد شريحة أعلى من الكمية التي تحتاجها، فالسعر المعروض هو سعر طلبك.</Note>;
     case "no_unit_benefit":
-      return <Note tone="info">بعد احتساب كل الرسوم، لا تقل تكلفة الكوب في الشريحة الأعلى.</Note>;
+      return <Note tone="info">بعد احتساب كل الرسوم، لا تقل تكلفة الوحدة في الشريحة الأعلى.</Note>;
     case "lower_unit_lower_payment":
-      return <Note tone="ok" title="الكمية الأكبر أقل في الدفع وفي تكلفة الكوب">الدفعة تقل بمقدار {sar(-tier!.extraPaymentHalalas!)} مع زيادة الكمية، حسب أسعار العرض نفسها.</Note>;
+      return <Note tone="ok" title="الكمية الأكبر أقل في الدفع وفي تكلفة الوحدة">الدفعة تقل بمقدار {sar(-tier!.extraPaymentHalalas!)} مع زيادة الكمية، حسب أسعار العرض نفسها.</Note>;
     case "lower_unit_higher_payment":
       return (
-        <Note tone="info" title="تكلفة الكوب أقل، لكنك تدفع أكثر الآن">
-          <p>تنخفض تكلفة الكوب {tier!.unitReductionSar} ريال، وترتفع دفعتك {sar(tier!.extraPaymentHalalas!)}، وتحصل على {qty(tier!.cost.excess ?? 0)} كوب فوق حاجتك.</p>
+        <Note tone="info" title="تكلفة الوحدة أقل، لكنك تدفع أكثر الآن">
+          <p>تنخفض تكلفة الوحدة {tier!.unitReductionSar} ريال، وترتفع دفعتك {sar(tier!.extraPaymentHalalas!)}، وتحصل على {qty(tier!.cost.excess ?? 0)} وحدة فوق حاجتك.</p>
           <p className="mt-1">هذا مبلغ إضافي تدفعه اليوم، وليس توفيرًا فوريًا.</p>
         </Note>
       );
@@ -51,10 +51,10 @@ function ScenarioRow({ s, base }: { s: DiscountScenario; base: DiscountScenario 
       <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3 lg:grid-cols-6">
         <div><dt className="text-xs text-muted">كمية الشراء</dt><dd>{s.cost.purchaseQty != null ? qty(s.cost.purchaseQty) : unk}</dd></div>
         <div><dt className="text-xs text-muted">الدفعة الآن</dt><dd className="font-semibold">{money(s.cost.totalHalalas)}</dd></div>
-        <div><dt className="text-xs text-muted">تكلفة الكوب</dt><dd>{s.cost.comparableUnitSar ? `${s.cost.comparableUnitSar} ريال` : unk}</dd></div>
-        <div><dt className="text-xs text-muted">فوق حاجتك</dt><dd>{s.cost.excess != null ? `${qty(s.cost.excess)} كوب` : unk}</dd></div>
+        <div><dt className="text-xs text-muted">تكلفة الوحدة</dt><dd>{s.cost.comparableUnitSar ? `${s.cost.comparableUnitSar} ريال` : unk}</dd></div>
+        <div><dt className="text-xs text-muted">فوق حاجتك</dt><dd>{s.cost.excess != null ? `${qty(s.cost.excess)} وحدة` : unk}</dd></div>
         {!s.isBaseline && <div><dt className="text-xs text-muted">زيادة الدفعة</dt><dd>{money(s.extraPaymentHalalas)}</dd></div>}
-        {!s.isBaseline && <div><dt className="text-xs text-muted">انخفاض تكلفة الكوب</dt><dd>{s.unitReductionSar ? `${s.unitReductionSar} ريال (${s.unitReductionPercent}%)` : unk}</dd></div>}
+        {!s.isBaseline && <div><dt className="text-xs text-muted">انخفاض تكلفة الوحدة</dt><dd>{s.unitReductionSar ? `${s.unitReductionSar} ريال (${s.unitReductionPercent}%)` : unk}</dd></div>}
       </dl>
       {s.coverageDays != null && (
         <p className="mt-2 text-sm">
@@ -64,7 +64,7 @@ function ScenarioRow({ s, base }: { s: DiscountScenario; base: DiscountScenario 
       )}
       {!s.isBaseline && s.hypotheticalSavingHalalas != null && s.hypotheticalSavingHalalas > 0 && (
         <p className="mt-2 rounded-s bg-sunken p-2 text-xs text-muted">
-          توفير مستقبلي افتراضي: {sar(s.hypotheticalSavingHalalas)}، <strong>بشرط</strong> أنك ستشتري الكمية الزائدة لاحقًا فعلًا، وبتكلفة {base.cost.comparableUnitSar} ريال للكوب نفسها. لا يضمن العرض بقاء هذا السعر، ولا يُحتسب هنا تخزين أو تلف.
+          توفير مستقبلي افتراضي: {sar(s.hypotheticalSavingHalalas)}، <strong>بشرط</strong> أنك ستشتري الكمية الزائدة لاحقًا فعلًا، وبتكلفة {base.cost.comparableUnitSar} ريال للوحدة نفسها. لا يضمن العرض بقاء هذا السعر، ولا يُحتسب هنا تخزين أو تلف.
         </p>
       )}
       {s.cost.missing.length > 0 && <p className="mt-2 text-xs text-unknown">ينقص: {s.cost.missing.map(missingText).join("، ")}</p>}
@@ -85,8 +85,8 @@ export function DiscountSection({ offers, requirements }: { offers: OfferState[]
       <Card>
         <p className="mb-3 text-sm text-muted">اختياري: أدخل استهلاكك لنقدّر كم يغطي كل خيار. بدون الاستهلاك لا نعرض أي تقدير، ولا نفترض التخزين أو التلف أو الطلب المستقبلي.</p>
         <div className="grid gap-3 sm:grid-cols-3">
-          <NumberField label="المخزون الحالي (كوب)" integer min={1} value={inv.currentStock} onChange={(v) => setInv({ ...inv, currentStock: v })} />
-          <NumberField label="متوسط الاستهلاك اليومي (كوب)" value={inv.dailyUse} onChange={(v) => setInv({ ...inv, dailyUse: v })} />
+          <NumberField label="المخزون الحالي (وحدة)" integer min={1} value={inv.currentStock} onChange={(v) => setInv({ ...inv, currentStock: v })} />
+          <NumberField label="متوسط الاستهلاك اليومي (وحدة)" value={inv.dailyUse} onChange={(v) => setInv({ ...inv, dailyUse: v })} />
           <NumberField label="أقصى تغطية تقبلها (يوم)" integer value={inv.maxCoverageDays} onChange={(v) => setInv({ ...inv, maxCoverageDays: v })} />
         </div>
         {items.map(({ o, a, tiers }) => (

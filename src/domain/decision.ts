@@ -1,4 +1,5 @@
 import Big from "big.js";
+import { CATEGORIES, compareSpec, specLabelValue } from "./categories";
 import { budgetFit, BudgetFit, computeCost, CostResult } from "./cost";
 import type { Requirements, ResolvedOffer } from "./schemas";
 
@@ -70,6 +71,10 @@ export function compatibilityChecks(o: ResolvedOffer, req: Requirements): Check[
   const checks: Check[] = [];
   const add = (id: string, label: string, field: string, required: string, offered: string | null, status: CheckStatus, mandatory = true) =>
     checks.push({ id, label, field, required, offered, status, mandatory });
+  // An offer for a different product is never comparable, whatever its price.
+  if (req.category && o.productCategory && o.productCategory !== req.category) {
+    add("category", "نوع المنتج", "productCategory", CATEGORIES[req.category].label, CATEGORIES[o.productCategory].label, "not");
+  }
   const eq = <T,>(want: T, got: T | null): CheckStatus => (got == null ? "unknown" : want === got ? "meets" : "not");
 
   if (req.sizeOz != null) add("size", "المقاس", "cupSizeOz", sizeLabel(req.sizeOz), o.cupSizeOz == null ? null : sizeLabel(o.cupSizeOz), eq(req.sizeOz, o.cupSizeOz));
@@ -92,6 +97,14 @@ export function compatibilityChecks(o: ResolvedOffer, req: Requirements): Check[
     const cities = o.deliveryCities;
     const status: CheckStatus = !cities?.length ? "unknown" : cities.map(normalizeCity).some((c) => c === want || c === "*") ? "meets" : "not";
     add("city", "مدينة التوصيل", "deliveryCities", req.city, cities?.join("، ") ?? null, status);
+  }
+  if (req.category) {
+    for (const def of CATEGORIES[req.category].specs) {
+      const want = req.specs[def.key];
+      if (want == null) continue;
+      const got = o.specs?.[def.key];
+      add(`spec:${def.key}`, def.label, `spec:${def.key}`, specLabelValue(def, want), got == null ? null : specLabelValue(def, got), compareSpec(def, want, got));
+    }
   }
   for (const r of req.other) {
     const s = o.otherRequirements[r.id];
@@ -192,7 +205,9 @@ export function specsComparable(offers: ResolvedOffer[]): boolean {
     const known = offers.map(pick).filter((v) => v != null);
     return new Set(known).size > 1;
   };
-  return !differs((o) => o.cupSizeOz) && !differs((o) => o.material) && !differs((o) => o.wall);
+  if (differs((o) => o.cupSizeOz) || differs((o) => o.material) || differs((o) => o.wall)) return false;
+  const specKeys = new Set(offers.flatMap((o) => Object.keys(o.specs ?? {})));
+  return ![...specKeys].some((k) => differs((o) => o.specs?.[k]));
 }
 
 export function decide(offers: ResolvedOffer[], req: Requirements, orderDate: string, priority: Priority): Decision {

@@ -1,8 +1,12 @@
-// Temporary identity. Change the name here; colors and type live in src/app/globals.css.
+// Name and logo live here; colors and type live in src/app/globals.css.
 export const brand = {
   nameAr: process.env.NEXT_PUBLIC_BRAND_NAME_AR ?? "رِبح",
   nameEn: process.env.NEXT_PUBLIC_BRAND_NAME_EN ?? "Ribh",
-  tagline: "قارن عروض الموردين على ما تحتاجه فعلًا",
+  descriptor: "مساعد مشتريات ذكي للمقاهي",
+  tagline: "افهم عروضك. أحسن قرارك.",
+  // Approved option-01 assets, used exactly as supplied in Ribh_Brand_Kit.
+  logoSrc: "/brand/ribh-logo-transparent.png",
+  symbolSrc: "/brand/ribh-symbol.svg",
 };
 
 // Only used when the user explicitly applies it to an offer that excludes VAT without stating a rate.

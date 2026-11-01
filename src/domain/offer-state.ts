@@ -28,7 +28,7 @@ export type OfferState = {
 };
 
 export const SCALAR_FIELDS = [
-  "supplierName", "productDescription", "cupSizeOz", "material", "wall", "use",
+  "productCategory", "supplierName", "productDescription", "cupSizeOz", "material", "wall", "use",
   "priceAmount", "priceBasis", "packageLevels", "soldByPackageOnly", "quotedQuantity", "moq", "moqUnit", "availableQuantity",
   "deliveryKind", "deliveryAmount", "deliveryFreeAbove", "deliveryCondition", "deliveryCities", "deliveryVat",
   "vatStatus", "vatRatePercent", "leadTimeDays", "leadTimeBusinessDays", "deliveryDate",
@@ -71,6 +71,13 @@ export function resolveAmbiguitiesFor(o: OfferState, field: string): OfferState 
 
 export function resolveOffer(o: OfferState): ResolvedOffer {
   const v = <K extends ScalarField>(k: K) => fieldValue<NonNullable<RawOffer[K]["value"]>>(o, k);
+  const specs: NonNullable<ResolvedOffer["specs"]> = {};
+  for (const key of Object.keys(o.fields)) {
+    if (key.startsWith("spec:")) {
+      const s = fieldValue<string | number>(o, key);
+      if (s != null) specs[key.slice(5)] = s;
+    }
+  }
   const other: ResolvedOffer["otherRequirements"] = {};
   for (const key of Object.keys(o.fields)) {
     if (key.startsWith("other:")) {
@@ -81,6 +88,8 @@ export function resolveOffer(o: OfferState): ResolvedOffer {
   return {
     id: o.id,
     label: v("supplierName") || o.label,
+    productCategory: v("productCategory"),
+    specs,
     cupSizeOz: v("cupSizeOz"), material: v("material"), wall: v("wall"), use: v("use"),
     priceAmount: v("priceAmount"), priceBasis: v("priceBasis"), packageLevels: v("packageLevels"), soldByPackageOnly: v("soldByPackageOnly"),
     quotedQuantity: v("quotedQuantity"), moq: v("moq"), moqUnit: v("moqUnit"), availableQuantity: v("availableQuantity"),

@@ -75,7 +75,7 @@ describe("schemas", () => {
     const text = "أحتاج ٣٠٠٠ كوب خلال أسبوع";
     const empty = { value: null, quote: null };
     const raw = RawRequirementsSchema.parse({
-      product: empty, quantity: v(3000, "٣٠٠٠ كوب"), sizeOz: v(12, "١٢ أونصة"), material: empty, wall: empty, use: empty, lid: empty, print: empty, city: empty, requiredDate: empty,
+      category: empty, specs: [], product: empty, quantity: v(3000, "٣٠٠٠ كوب"), sizeOz: v(12, "١٢ أونصة"), material: empty, wall: empty, use: empty, lid: empty, print: empty, city: empty, requiredDate: empty,
       requiredWithinDays: v(7, "خلال أسبوع"), budgetSar: empty, budgetIncludesDelivery: empty, budgetIncludesVat: empty, other: [],
     });
     const out = validateRawRequirements(raw, text, TODAY);

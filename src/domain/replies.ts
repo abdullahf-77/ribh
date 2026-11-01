@@ -1,3 +1,4 @@
+import type { CategoryId } from "./categories";
 import { validateRawOffer } from "./evidence";
 import { Evidence, fieldValue, OfferState, pushVersion, resolveAmbiguitiesFor, VersionFlag } from "./offer-state";
 import type { Charge, RawOffer } from "./schemas";
@@ -38,14 +39,14 @@ function mergeCharges(existing: Charge[], incoming: Charge[]): { merged: Charge[
 }
 
 /** Turns a validated reply extraction into a proposal. Nothing is applied here. */
-export function buildReplyProposal(offer: OfferState, raw: RawOffer, replyId: string, text: string, requirementIds: string[]): ReplyProposal {
-  const validated = validateRawOffer(raw, replyId, text, requirementIds);
+export function buildReplyProposal(offer: OfferState, raw: RawOffer, replyId: string, text: string, requirementIds: string[], category: CategoryId | null = null): ReplyProposal {
+  const validated = validateRawOffer(raw, replyId, text, requirementIds, category);
   const changes: ProposedChange[] = [];
   const rejected = [...validated.rejected];
 
   for (const [field, v] of Object.entries(validated.fields)) {
     if (v.value == null || !v.evidence) continue;
-    if (field === "supplierName") continue;
+    if (field === "supplierName" || field === "productCategory") continue;
     const previous = fieldValue(offer, field);
 
     if (field === "charges") {

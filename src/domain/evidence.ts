@@ -1,11 +1,10 @@
+import { CATEGORIES, CategoryId, coerceSpec, NATIVE_TO_OFFER, specDef } from "./categories";
+import { foldDigits } from "./evidence-text";
 import type { Evidence, FieldVersion, OfferState, VersionFlag } from "./offer-state";
 import { SCALAR_FIELDS } from "./offer-state";
 import type { Ambiguity, RawOffer, RawRequirements, Requirements } from "./schemas";
 
-const DIGITS: Record<string, string> = { "٠": "0", "١": "1", "٢": "2", "٣": "3", "٤": "4", "٥": "5", "٦": "6", "٧": "7", "٨": "8", "٩": "9", "۰": "0", "۱": "1", "۲": "2", "۳": "3", "۴": "4", "۵": "5", "۶": "6", "۷": "7", "۸": "8", "۹": "9" };
-
-export const foldDigits = (s: string) =>
-  s.replace(/[٠-٩۰-۹]/g, (d) => DIGITS[d]).replace(/٫/g, ".").replace(/٬/g, ",");
+export { foldDigits } from "./evidence-text";
 
 const IGNORABLE = /[ـً-ْ​-‏‪-‮⁦-⁩﻿]/;
 
@@ -35,6 +34,9 @@ export function locateQuote(source: string, quote: string): { start: number; end
 }
 
 const NUMBER_WORDS: [RegExp, number[]][] = [
+  [/طبقتين/, [2]], [/طبقة واحدة/, [1]],
+  [/(ثلاث|ثلاثة|تلات|تلاتة)\s*(آلاف|الاف)/, [3000]], [/(أربع|اربع|أربعة|اربعة)\s*(آلاف|الاف)/, [4000]], [/(خمس|خمسة)\s*(آلاف|الاف)/, [5000]],
+  [/(ست|ستة)\s*(آلاف|الاف)/, [6000]], [/(سبع|سبعة)\s*(آلاف|الاف)/, [7000]], [/(ثمان|ثمانية|تمن)\s*(آلاف|الاف)/, [8000]], [/(تسع|تسعة)\s*(آلاف|الاف)/, [9000]], [/(عشر|عشرة)\s*(آلاف|الاف)/, [10000]],
   [/ألفين|الفين/, [2000]], [/ألف|الف|thousand/i, [1000]], [/مئتين|مئتان|ميتين/, [200]], [/مئة|مائة|ميه|hundred/i, [100]],
   [/نصف|نص/, [0.5]], [/ربع/, [0.25]], [/درزن|دزينة|dozen/i, [12]], [/أسبوعين|اسبوعين/, [14]], [/أسبوع|اسبوع|week/i, [7]],
   [/يومين/, [2]], [/خمسين/, [50]], [/مية/, [100]], [/عشرة|عشر\b/, [10]],
@@ -76,7 +78,7 @@ export type ValidatedOffer = {
 };
 
 /** Applies the evidence rules to a raw model response from one source text. */
-export function validateRawOffer(raw: RawOffer, sourceId: string, text: string, knownRequirementIds: string[]): ValidatedOffer {
+export function validateRawOffer(raw: RawOffer, sourceId: string, text: string, knownRequirementIds: string[], category: CategoryId | null = null): ValidatedOffer {
   const fields: ValidatedOffer["fields"] = {};
   const rejected: ValidatedOffer["rejected"] = [];
 
@@ -105,6 +107,21 @@ export function validateRawOffer(raw: RawOffer, sourceId: string, text: string, 
     fields[`other:${r.id}`] = checked;
   }
 
+  for (const s of raw.specs) {
+    // Only keys of this category survive, so another product's specification cannot leak in.
+    const def = specDef(s.key, category);
+    const value = def ? coerceSpec(def, s.value) : null;
+    if (!def || value == null) { rejected.push({ field: `spec:${s.key}`, quote: s.quote }); continue; }
+    const checked = checkField(sourceId, text, { value, quote: s.quote });
+    if (checked.flag === "unsupported_quote") rejected.push({ field: `spec:${s.key}`, quote: s.quote });
+    fields[`spec:${s.key}`] = checked;
+  }
+
+  if (category) {
+    const allowed = new Set(CATEGORIES[category].native.map((n) => NATIVE_TO_OFFER[n]));
+    for (const f of Object.values(NATIVE_TO_OFFER)) if (!allowed.has(f)) fields[f] = { value: null, evidence: null, flag: null };
+  }
+
   const ambiguities: Ambiguity[] = raw.ambiguities.map((a, i) => {
     const located = a.quote ? locateQuote(text, a.quote) : null;
     return { ...a, quote: located ? a.quote : null, id: `${sourceId}#${i}`, resolved: false, flaggedQuote: !!a.quote && !located };
@@ -130,14 +147,15 @@ export function newOfferState(id: string, label: string, text: string, validated
 export type RequirementEvidence = Partial<Record<keyof Requirements, string>>;
 
 /** Validates quotes against the buyer's text. Relative deadlines become dates here, in code. */
-export function validateRawRequirements(raw: RawRequirements, text: string, today: string) {
+export function validateRawRequirements(raw: RawRequirements, text: string, today: string, knownCategory: CategoryId | null = null) {
   const req: Requirements = {
-    product: null, quantity: null, sizeOz: null, material: null, wall: null, use: null, lid: null, print: null, city: null,
+    category: null, specs: {}, product: null, quantity: null, sizeOz: null, material: null, wall: null, use: null, lid: null, print: null, city: null,
     requiredDate: null, budgetSar: null, budgetIncludesDelivery: null, budgetIncludesVat: null, other: [],
   };
   const evidence: RequirementEvidence = {};
+  const specEvidence: Record<string, string> = {};
   const rejected: string[] = [];
-  const keys = ["product", "quantity", "sizeOz", "material", "wall", "use", "lid", "print", "city", "requiredDate", "budgetSar", "budgetIncludesDelivery", "budgetIncludesVat"] as const;
+  const keys = ["category", "product", "quantity", "sizeOz", "material", "wall", "use", "lid", "print", "city", "requiredDate", "budgetSar", "budgetIncludesDelivery", "budgetIncludesVat"] as const;
   for (const key of keys) {
     const checked = checkField("requirement", text, raw[key]);
     if (checked.flag === "unsupported_quote") rejected.push(key);
@@ -157,8 +175,24 @@ export function validateRawRequirements(raw: RawRequirements, text: string, toda
     }
   }
   if (req.quantity != null && (!Number.isInteger(req.quantity) || req.quantity <= 0)) { req.quantity = null; rejected.push("quantity"); }
+  for (const s of raw.specs) {
+    const def = specDef(s.key, knownCategory ?? req.category);
+    const value = def ? coerceSpec(def, s.value) : null;
+    if (!def || value == null) { rejected.push(`spec:${s.key}`); continue; }
+    const checked = checkField("requirement", text, { value, quote: s.quote });
+    if (checked.value == null || checked.flag) { rejected.push(`spec:${s.key}`); continue; }
+    req.specs[s.key] = value;
+    specEvidence[s.key] = s.quote;
+  }
+  const effective = knownCategory ?? req.category;
+  if (effective) {
+    const allowed = CATEGORIES[effective].native as string[];
+    for (const f of ["sizeOz", "use", "material", "wall", "lid", "print"]) {
+      if (!allowed.includes(f) && (req as Record<string, unknown>)[f] != null) { (req as Record<string, unknown>)[f] = null; delete evidence[f as keyof Requirements]; }
+    }
+  }
   raw.other.forEach((o, i) => {
     if (locateQuote(text, o.quote)) req.other.push({ id: `R${i + 1}`, text: o.text, level: o.level });
   });
-  return { requirements: req, evidence, rejected };
+  return { requirements: req, evidence, specEvidence, rejected };
 }

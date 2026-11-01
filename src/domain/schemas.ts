@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CategoryId } from "./categories";
 
 /* ---------- What Llama must return (strict structured output) ---------- */
 
@@ -44,7 +45,11 @@ export const RawAmbiguity = z.object({
   quote: z.string().nullable(),
 });
 
+const RawSpec = z.object({ key: z.string(), value: z.string(), quote: z.string() });
+
 export const RawOfferSchema = z.object({
+  productCategory: F(CategoryId),
+  specs: z.array(RawSpec),
   supplierName: F(z.string()),
   productDescription: F(z.string()),
   cupSizeOz: F(z.number()),
@@ -85,6 +90,8 @@ export const RawOfferSchema = z.object({
 export type RawOffer = z.infer<typeof RawOfferSchema>;
 
 export const RawRequirementsSchema = z.object({
+  category: F(CategoryId),
+  specs: z.array(RawSpec),
   product: F(z.string()),
   quantity: F(z.number()),
   sizeOz: F(z.number()),
@@ -119,6 +126,8 @@ export const OtherRequirement = z.object({
 export type OtherRequirement = z.infer<typeof OtherRequirement>;
 
 export const RequirementsSchema = z.object({
+  category: CategoryId.nullable(),
+  specs: z.record(z.string(), z.union([z.string(), z.number()])),
   product: z.string().nullable(),
   quantity: z.number().int().positive().nullable(),
   sizeOz: z.number().positive().nullable(),
@@ -137,7 +146,7 @@ export const RequirementsSchema = z.object({
 export type Requirements = z.infer<typeof RequirementsSchema>;
 
 export const emptyRequirements = (): Requirements => ({
-  product: null, quantity: null, sizeOz: null, material: null, wall: null, use: null, lid: null, print: null,
+  category: null, specs: {}, product: null, quantity: null, sizeOz: null, material: null, wall: null, use: null, lid: null, print: null,
   city: null, requiredDate: null, budgetSar: null, budgetIncludesDelivery: null, budgetIncludesVat: null, other: [],
 });
 
@@ -150,6 +159,8 @@ export type Ambiguity = z.infer<typeof RawAmbiguity> & { id: string; resolved: b
 export type ResolvedOffer = {
   id: string;
   label: string;
+  productCategory?: CategoryId | null;
+  specs?: Record<string, string | number>;
   cupSizeOz: number | null;
   material: z.infer<typeof Material> | null;
   wall: z.infer<typeof Wall> | null;

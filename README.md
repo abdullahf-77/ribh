@@ -1,14 +1,50 @@
 # رِبح (Ribh)
 
-An AI procurement assistant for small Saudi cafés buying disposable cups. It answers: **which supplier offer actually meets my requirements, what will fulfilling my order cost, and what should I clarify before buying?**
+A Llama-powered, Arabic-first purchasing assistant for small Saudi cafés, covering **cups, lids, bags, napkins and takeaway packaging**. It answers: **which supplier offer actually meets my requirements, what will fulfilling my order cost, and what should I clarify before buying?**
 
-The name and look are temporary. Both are configurable (see [Identity](#identity)).
+One comparison covers one product and two or three offers. Anything else is refused with an explanation rather than compared unreliably.
 
-## The journey
+## The workspace
 
-Define requirements → prepare a quotation request → enter 2–3 supplier offers → review extracted data → compare → clarify missing information → update the decision.
+One page, with a Llama-powered assistant in a resizable, collapsible side panel and structured sections beside it. On mobile, tabs switch between «المساعد» and «المقارنة» in the same session.
+
+| Section | Holds |
+| --- | --- |
+| Recommendation banner | Current verdict, conditions, and an active scenario |
+| Requirements | Summary with editing, previews of conflicts, and category switching |
+| Supplier offers | Specifications, prices, what is missing, evidence links, confirm and edit |
+| Comparison | Cost breakdown table (stacked cards on mobile) with per-requirement evidence |
+| Scenarios and discount | Quantity, budget, deadline, priority, and quantity-discount analysis |
+| Supplier clarification | Questions from actual gaps, reply paste, change preview, history |
+| Quotation request | Editable draft with copy; flagged when requirements have since changed |
+
+The assistant gathers requirements, asks targeted questions, accepts pasted offers and replies, explains results, and processes changes. It keeps messages short and links to the section that changed. Chat and workspace share one validated session, sent with every turn, so edits in either place are seen by the other and by Llama. A chat message describing a result is marked outdated once that result changes.
+
+### Product categories
+
+`src/domain/categories.ts` is the single definition of each product's specifications, and validation, prompts, questions, comparison checks and forms all read from it. Shared fields (quantity, packaging, price, VAT, delivery, MOQ, deadline) are the same everywhere, and the money engine has no category logic. Only a category's own fields survive validation, so a napkin buyer is never asked about cup sizes. Changing category asks for confirmation, then clears the old specifications and offers.
 
 The app never sends messages or places orders. The user copies text and acts themselves.
+
+### How a turn works
+
+```
+user message + recent history + structured state
+        ↓
+1. Llama reads it into a typed plan (requirement updates, offers, reply, what-if, ...)
+        ↓
+2. Code validates the plan: every value must be quoted from the user's own message,
+   and offer text must be copied exactly. Differences from held values become conflict cards.
+        ↓
+3. Existing services extract offers; the deterministic engine computes the decision.
+        ↓
+4. Llama explains the computed result. Its text is checked for invented numbers, a different
+   winner, quality claims, and questions about known fields. Failing text is replaced by computed text.
+```
+
+Each assistant message is labelled: **رد Llama**, **رد تجريبي محفوظ** (demo), or **محسوب من بياناتك** (written by code). Card actions such as confirming, editing and changing quantity recalculate locally with no model call.
+
+Structured state (requirements, evidence, waived fields, offers with version history, confirmations, priority) lives in the browser tab and is sent with each turn. Nothing is stored on the server. Pasted offer text is not included in the state sent back to the planning prompt.
 
 ## Who does what
 
@@ -30,6 +66,7 @@ Llama never receives the job of calculating a total or picking a winner. It rece
 src/
   config/brand.ts        Name, VAT assumption with source, input limits
   domain/                Pure, tested, no I/O
+    categories.ts        Supported products and their specifications
     schemas.ts           Zod schemas for model output and confirmed data
     evidence.ts          Quote verification, numeral handling, requirement validation
     offer-state.ts       Versioned fields: offer / reply / user, nothing overwritten
@@ -45,9 +82,12 @@ src/
     prompts.ts           System prompts; pasted text is delimited as untrusted data
     service.ts           One function per AI task; falls back to fixtures only in demo mode
   demo/                  Fictional scenarios with documented expected outcomes
-  app/api/*              Thin routes: size limit, Zod validation, rate limit, safe errors
-  components/            Arabic-first RTL guided workflow
-eval/                    Held-out extraction set, scorer, live smoke test, test-only mock
+  app/api/chat           The conversation endpoint; other api/* routes expose single tasks
+  app/api/_lib.ts        Size limit, Zod validation, rate limit, safe errors
+  chat/                  Session state, plan schema, prompts, and the turn orchestrator (turn.ts)
+  components/workspace/  App state, assistant panel, and workspace sections
+  components/            Brand assets, offer review form, discount section, shared controls
+eval/                    Held-out extraction set, scorer, multi-turn live smoke test
 tests/                   Vitest suites
 ```
 
@@ -90,12 +130,12 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Without `LLAMA_API_KEY` the app runs in **demo mode**, with a permanent label. Fictional examples are answered from stored fixtures that pass through the same validation as live output. Any other text is refused rather than faked, but requirements and offers can still be entered by hand, and all calculations work.
+Without `LLAMA_API_KEY` the app runs in **demo mode**, with a permanent label. It is a set of fixed fictional walkthroughs, one per product: suggested messages stand in for Llama's reading of those exact texts, and everything after that runs through the real validation and engine. Free text is refused rather than faked, so demo mode is not a substitute for the live assistant.
 
 ### Enable and verify live Llama
 
 1. Create a key at [openrouter.ai/keys](https://openrouter.ai/keys) and put it in `.env.local` as `LLAMA_API_KEY`.
-2. Run one real request per AI task:
+2. Run a real multi-turn conversation (requirements, follow-ups, RFQ, offers, comparison, why, what-if, supplier reply, every category, unsupported product, category switch):
 
 ```bash
 npm run smoke:llama
@@ -150,18 +190,26 @@ All suppliers, prices and replies are fictional. No scenario contains a pre-sele
 | `fixed-lot` | Lot smaller than request | 2,000-cup lot fails; never repeated or prorated |
 | `user-correction` | Correction flips result | After correcting to excluded + 15%: 1,380 loses to 1,260 |
 | `no-deadline-match` | Nobody meets the date | "No eligible offer", stated plainly |
+| `lids-basic` | Other category, conflicting reply | Flat lid fails despite a 600 total; sip lid 900, and the reply's 200-per-carton price needs a choice |
+| `bags-basic` | Unknown printing | Cheaper bag stays "clarify"; recommendation is conditional |
+| `napkins-basic` | Ply and carton rounding | 1-ply fails; 5 cartons = 720 with 2,000 excess |
+| `takeaway-basic` | Capacity and VAT | 500 ml fails; 750 ml with 15% stated VAT = 1,035 |
 | `full-journey` | RFQ, discount, reply, update | 5 cartons: 0.42/cup, +660 now. After the reply, recommendation moves from الوفرة (1,440) to الربوة (1,200) |
 
 ## Evaluation results
 
 - **Tests:** run `npm test` for the current count. Suites cover money, packaging, MOQ, lots, VAT, fees, compatibility, dates, ranking after edits, tiers (all-unit vs incremental, boundaries), coverage, evidence, schemas, RFQ, replies and conflicts, supplier isolation, the provider adapter, API routes, and every demo scenario.
-- **Live extraction quality:** **not measured yet.** No API key was available during development. `eval/heldout.ts` holds 15 synthetic examples kept apart from the demos, and `npm run eval:extraction` reports correct, missed, wrong and invented fields. No accuracy claim is made until it has been run.
+- **Live conversation:** **not verified yet.** No API key was available. Multi-turn logic is tested with a stubbed host and the labelled demo script, which prove the code paths but not Llama's actual behaviour. Run `npm run smoke:llama`.
+- **Live extraction quality:** **not measured yet.** No API key was available during development. `eval/heldout.ts` holds 19 synthetic examples kept apart from the demos, and `npm run eval:extraction` reports correct, missed, wrong and invented fields. No accuracy claim is made until it has been run.
 
 ## Known limitations
 
-- Live Llama behaviour is unverified until the smoke test runs. Prompts have not been tuned on real responses and may need adjusting.
+- Live Llama behaviour is unverified until the smoke test runs. Prompts have not been tuned on real responses and may need adjusting, especially the planning prompt, which uses a large strict schema.
+- A turn with several offers makes several model calls, so a slow host can approach the 60-second route limit.
 - Demo data is synthetic and does not represent real Saudi prices or suppliers.
-- Scope is deliberately narrow: one cup specification per comparison, text input only.
+- Scope is deliberately narrow: five product types, one product per comparison, text input only.
+- Free-text specs such as colour cannot be judged by code unless they match exactly, so they stay unknown for the buyer to resolve.
+- A "what if" question is applied as a labelled scenario across the workspace; the confirmed order changes only when the buyer adopts it.
 - City matching uses a small alias table; unlisted spellings can read as "does not meet" and should be corrected on the review screen.
 - Budget overruns count as failing a requirement. Raise the budget in the scenario panel to explore further.
 - Business-day lead times skip Fridays and Saturdays but not public holidays.
@@ -169,4 +217,6 @@ All suppliers, prices and replies are fictional. No scenario contains a pre-sele
 
 ## Identity
 
-The brand is deliberately unfinished. Change the name in `src/config/brand.ts` or through `NEXT_PUBLIC_BRAND_NAME_AR`, and colors, radii, shadows and type through the tokens in `src/app/globals.css`. Components only reference tokens.
+Applied from `Ribh_Brand_Kit` (approved option 01). The logo files are in `public/brand`, shown as supplied through `src/components/Brand.tsx`, and the symbol is the avatar and favicon. Colors, radii and shadows are tokens in `src/app/globals.css`.
+
+Measured contrast: brand green on pale green is 3.43:1, below AA for small text, so confirmed-state text uses a darker `#0B6B4A` (5.89:1) and brand green stays on the logo and graphics. White on brand blue is 5.34:1. Ink on white is 12.95:1.

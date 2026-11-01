@@ -12,7 +12,7 @@ export const daysLabel = (n: number) => counted(n, "يومًا", "أيام");
 
 export const priorityLabels: Record<Priority, string> = {
   cash: "أقل مبلغ تدفعه الآن",
-  unit: "أقل تكلفة للكوب",
+  unit: "أقل تكلفة للوحدة",
   earliest: "أقرب تسليم مؤكد",
 };
 
@@ -39,7 +39,7 @@ export function reasonText(code: string, e: Evaluation): string {
 export const missingLabels: Record<string, string> = {
   price: "السعر",
   price_basis: "أساس السعر (للحبة أو للكرتون أو للكمية كاملة)",
-  package_size: "عدد الأكواب في العبوة",
+  package_size: "عدد الوحدات في العبوة",
   lot_quantity: "الكمية المشمولة في السعر",
   moq_unit: "وحدة الحد الأدنى للطلب",
   partial_package: "هل يمكن الشراء بأقل من عبوة كاملة",
@@ -65,9 +65,20 @@ export function missingText(code: string): string {
 function winnerSentence(e: Evaluation, d: Decision): string {
   const metric =
     d.priority === "cash" ? `بإجمالي ${sar(e.cost.totalHalalas!)}`
-    : d.priority === "unit" ? `بتكلفة ${e.cost.comparableUnitSar} ريال للكوب شاملة الرسوم`
+    : d.priority === "unit" ? `بتكلفة ${e.cost.comparableUnitSar} ريال للوحدة شاملة الرسوم`
     : e.delivery.arrival ? `بتسليم متوقع في ${e.delivery.arrival}` : `بإجمالي ${sar(e.cost.totalHalalas!)}`;
   return `يتقدم ${e.label} حسب أولويتك (${priorityLabels[d.priority]}) ${metric}.`;
+}
+
+/** Plain reasons for one offer, from computed checks only. */
+export function whyOffer(e: Evaluation): string {
+  const status = { confirmed: "مؤكد مناسب", clarify: "يحتاج توضيحًا", fail: "لا يستوفي شروطك" }[e.category];
+  const parts = [`${e.label}: ${status}${e.rank ? `، وترتيبه ${e.rank}` : ""}.`];
+  if (e.cost.totalHalalas != null) parts.push(`إجماليه ${sar(e.cost.totalHalalas)}.`);
+  const reasons = [...e.failReasons, ...e.blockers.filter((b) => b !== "cost")].map((r) => reasonText(r, e));
+  if (reasons.length) parts.push(`السبب: ${reasons.join("؛ ")}.`);
+  if (e.cost.missing.length) parts.push(`ينقص: ${e.cost.missing.map(missingText).join("، ")}.`);
+  return parts.join(" ");
 }
 
 export function deterministicSummary(d: Decision): string {
@@ -130,11 +141,11 @@ export function numbersIn(text: string): string[] {
 
 const FORBIDDEN = /(ثقة\s*\d|نسبة الثقة|جودة أعلى|أعلى جودة|أكثر موثوقية|موثوق|سعر السوق|confidence|better quality)/i;
 
-export function validateSummary(text: string, d: Decision): boolean {
+export function validateSummary(text: string, d: Decision, extraAllowed?: Set<string>): boolean {
   if (!text.trim() || text.length > 900) return false;
   if (FORBIDDEN.test(text)) return false;
   const allowed = allowedNumbers(d);
-  if (numbersIn(text).some((n) => !allowed.has(n))) return false;
+  if (numbersIn(text).some((n) => !allowed.has(n) && !extraAllowed?.has(n))) return false;
   const v = d.verdict;
   const labels = d.evaluations.map((e) => e.label);
   if (v.kind === "recommend" || v.kind === "recommend_open") {
