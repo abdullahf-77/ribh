@@ -1,26 +1,81 @@
 @import "tailwindcss";
 
+/* Design tokens. The final brand replaces values here and in src/config/brand.ts; components only use the tokens. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+  --c-canvas: #f2f4f6;
+  --c-surface: #ffffff;
+  --c-sunken: #e9edf0;
+  --c-ink: #17212b;
+  --c-muted: #566370;
+  --c-line: #d5dce2;
+  --c-accent: #1d4f91;
+  --c-accent-ink: #ffffff;
+  --c-accent-soft: #e6eef8;
+  --c-meets: #11663e;
+  --c-meets-soft: #e3f3ea;
+  --c-not: #a8261d;
+  --c-not-soft: #fbe9e7;
+  --c-unknown: #7c5300;
+  --c-unknown-soft: #fbf1da;
+  --c-mark: #ffe9a8;
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --shadow-1: 0 1px 2px rgb(23 33 43 / 0.06), 0 1px 8px rgb(23 33 43 / 0.04);
+  --motion: 140ms ease-out;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-canvas: var(--c-canvas);
+  --color-surface: var(--c-surface);
+  --color-sunken: var(--c-sunken);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-line: var(--c-line);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-meets: var(--c-meets);
+  --color-meets-soft: var(--c-meets-soft);
+  --color-not: var(--c-not);
+  --color-not-soft: var(--c-not-soft);
+  --color-unknown: var(--c-unknown);
+  --color-unknown-soft: var(--c-unknown-soft);
+  --radius-s: var(--radius-s);
+  --radius-m: var(--radius-m);
+  --shadow-1: var(--shadow-1);
+  --font-sans: var(--font-brand), system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+html { -webkit-text-size-adjust: 100%; }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--c-canvas);
+  color: var(--c-ink);
+  font-family: var(--font-brand), system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.65;
 }
+:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 2px; border-radius: 4px; }
+
+/* What is not known is drawn differently from what is: hatching means "no value", never zero. */
+.hatch {
+  background-image: repeating-linear-gradient(-45deg, var(--c-unknown-soft) 0 5px, transparent 5px 10px);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c-unknown) 35%, transparent);
+}
+
+.field {
+  width: 100%;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-s);
+  padding: 0.5rem 0.7rem;
+  min-height: 2.6rem;
+}
+.field:focus { border-color: var(--c-accent); outline: none; box-shadow: 0 0 0 2px var(--c-accent-soft); }
+.field[aria-invalid="true"] { border-color: var(--c-not); }
+
+mark.evidence { background: var(--c-mark); color: inherit; border-radius: 3px; padding: 0 2px; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } * { transition: none !important; } }
