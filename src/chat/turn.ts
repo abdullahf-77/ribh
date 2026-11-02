@@ -89,6 +89,12 @@ function discountNumbers(analyses: DiscountAnalysis[]): string[] {
 /** Checks a first-pass reply: nothing it asks may be known already, and it may only repeat numbers it was given. */
 export function validatePlanReply(reply: string, asks: string[], state: ConversationState, userText: string): boolean {
   if (!reply.trim() || reply.length > 700) return false;
+  // A question that names no field cannot be checked against what is already known.
+  if (/[؟?]/.test(reply) && !asks.length) return false;
+  // Models can list one field and still ask about another, so the wording is checked against what is known.
+  const r = state.requirements;
+  if (/[؟?]/.test(reply) && ((r.quantity != null && /كم (عدد|كمية|الكمية)|الكمية|كم (كوب|كيس|منديل|غطاء|علبة|عبوة)/.test(reply))
+    || (r.city != null && /مدينة|مدينتك|وين/.test(reply)) || (r.requiredDate != null && /متى/.test(reply)) || (r.budgetSar != null && /ميزانية|ميزانيتك/.test(reply)))) return false;
   const known = new Set<string>([...knownFields(state), ...state.waived]);
   if (asks.some((f) => known.has(f))) return false;
   // It may ask anything open that belongs to this product, but not another product's fields.
@@ -209,7 +215,11 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
     const free = IDS.filter((id) => !state.offers.some((o) => o.id === id));
     const accepted = segments.slice(0, free.length);
     if (accepted.length < segments.length) notes.push("أقارن ثلاثة عروض كحد أقصى، فلم أضف الباقي.");
-    const results = await Promise.allSettled(accepted.map((seg, i) => extractOffer(free[i], seg.text, state.requirements.other, cfg, state.requirements.category)));
+    const read = (seg: (typeof accepted)[number], i: number) => extractOffer(free[i], seg.text, state.requirements.other, cfg, state.requirements.category);
+    // A host with a low per-minute output limit is read one offer at a time, so its waits do not compound.
+    const results: PromiseSettledResult<Awaited<ReturnType<typeof read>>>[] = [];
+    if (cfg?.maxOutputTokens) for (const [i, seg] of accepted.entries()) results.push(...await Promise.allSettled([read(seg, i)]));
+    else results.push(...await Promise.allSettled(accepted.map(read)));
     const added: OfferState[] = [];
     const rejected = { ...state.rejected };
     results.forEach((r, i) => {
@@ -230,7 +240,7 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
       patch.offers = state.offers;
       patch.rejected = rejected;
       patch.analyzedOtherKey = state.analyzedOtherKey;
-      codeReply = "قرأت العروض وأضفتها إلى قسم «عروض الموردين». راجعها وأكّدها، فلا أقارن إلا ما تؤكده.";
+      codeReply = "قرأت العروض وأضفتها إلى «العروض». راجعها وأكّدها، فلا أقارن إلا ما تؤكده.";
     } else codeReply = "تعذرت قراءة العروض. يمكنك إعادة المحاولة أو إدخالها يدويًا من البطاقة.";
   }
 
@@ -260,7 +270,7 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
       const proposal = buildReplyProposal(target, r.raw, `reply:${target.id}:${n}`, supplierReply.text, state.requirements.other.map((o) => o.id), state.requirements.category);
       blocks.push({ type: "proposal", proposal, status: "open" });
       codeReply = proposal.changes.length
-        ? "جهزت التغييرات المقترحة في قسم «توضيح الموردين». لم أطبق شيئًا بعد، راجعها وأكّدها."
+        ? "جهزت التغييرات المقترحة في «العروض»، تحت أسئلة الموردين. لم أطبق شيئًا بعد، راجعها وأكّدها."
         : "لم أجد في هذا الرد معلومة واضحة يمكن إضافتها، فتبقى البيانات كما هي.";
     }
   }
@@ -274,7 +284,7 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
       const draft = await draftRfq(state.requirements, rfq.includeBudget, cfg);
       blocks.push({ type: "rfq", message: draft.message, source: draft.source, reason: draft.reason, includeBudget: rfq.includeBudget });
       const open = gaps.map((g) => g.question).slice(0, 2).join(" ");
-      codeReply = `جهزت طلب عرض السعر في قسمه. راجعه وانسخه وأرسله بنفسك؛ لا أرسل شيئًا.${open ? ` لم تحدد بعد ما يلي فلن يُذكر: ${open}` : ""}`;
+      codeReply = `جهزت طلب عرض السعر في «احتياجي». راجعه وانسخه وأرسله بنفسك؛ لا أرسل شيئًا.${open ? ` لم تحدد بعد ما يلي فلن يُذكر: ${open}` : ""}`;
     }
   }
 
@@ -354,5 +364,5 @@ export async function runTurn(req: TurnRequest, cfg: ProviderConfig | null): Pro
   if (notes.length) reply = `${reply}\n${notes.join("\n")}`;
   if (patch.requirements && otherKey(state.requirements) !== state.analyzedOtherKey && state.offers.length) blocks.push({ type: "reanalyze" });
 
-  return { mode, reply, replySource, blocks, patch };
+  return { mode, reply, replySource, servedModel: cfg?.servedModel ?? null, blocks, patch };
 }

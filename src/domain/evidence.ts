@@ -126,6 +126,11 @@ export function validateRawOffer(raw: RawOffer, sourceId: string, text: string, 
     fields[key] = checked;
   }
 
+  // A lot needs a stated quantity. A price with only a carton size is a price per carton, never a total for the order.
+  if (fields.priceBasis.value === "quoted_lot" && fields.quotedQuantity.value == null && fields.packageLevels.value != null) {
+    fields.priceBasis = { ...fields.priceBasis, value: "per_package" };
+  }
+
   for (const key of ["charges", "tiers"] as const) {
     const kept: unknown[] = [];
     let firstEvidence: Evidence | null = null;

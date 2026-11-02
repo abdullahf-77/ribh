@@ -21,7 +21,7 @@ for (const p of ["/.env", "/.env.local", "/.env.example", "/.git/config", "/.ver
 }
 
 const status = await (await fetch(`${base}/api/status`)).json();
-check(status.mode === "live" && status.model === "meta-llama/llama-4-maverick", `status ${JSON.stringify(status)}`);
+check(status.mode === "live", `status ${JSON.stringify(status)}`);
 check(!SECRET.test(JSON.stringify(status)), "no secret in status");
 
 const empty = { requirements: { category: null, specs: {}, product: null, quantity: null, sizeOz: null, material: null, wall: null, use: null, lid: null, print: null, city: null, requiredDate: null, budgetSar: null, budgetIncludesDelivery: null, budgetIncludesVat: null, other: [] }, reqEvidence: {}, waived: [], offers: [], confirmedOfferIds: [], rejected: {}, priority: "cash", orderDate: "2026-11-02", analyzedOtherKey: "[]", scenarioQuantity: null };
@@ -31,9 +31,9 @@ const raw = await res.text();
 check(res.status === 200, `chat turn ${res.status} in ${Date.now() - t}ms`);
 check(!SECRET.test(raw), "no secret in chat response");
 const out = JSON.parse(raw);
-console.log("  reply:", out.reply ?? out.error?.message, "| source:", out.replySource, "| mode:", out.mode);
+console.log("  reply:", out.reply ?? out.error?.message, "| source:", out.replySource, "| model:", out.servedModel, "| mode:", out.mode);
 check(out.mode === "live", "response is from live mode");
-check(out.patch?.requirements?.category === "bags" && out.patch?.requirements?.quantity === 2000, "Llama read category and quantity");
+check(out.patch?.requirements?.category === "bags" && out.patch?.requirements?.quantity === 2000, "model read category and quantity");
 
 const invalid = await fetch(`${base}/api/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: "not json" });
 check(invalid.status === 400, `bad input rejected (${invalid.status})`);

@@ -23,7 +23,8 @@ export const requirementsUser = (text: string) => `<data>\n${text}\n</data>`;
 
 const OFFER_RULES = `إرشادات الحقول:
 - supplierName: فقط إن ورد الاسم في النص.
-- priceBasis: per_item سعر للحبة؛ per_package للكرتون أو الباكيت أو "الألف"؛ quoted_lot سعر إجمالي لكمية محددة. إن لم يتضح فاجعله null وأضف ambiguity بنوع pricing.
+- priceBasis: مثال مهم: "الكرتون ٢٤٠٠ منديل بـ ١٥٠ ريال" يعني priceBasis=per_package و packageLevels=[{"label":"كرتون","count":2400}] و priceAmount=150، وليس quoted_lot. quoted_lot فقط إذا عُرض مبلغ واحد لكمية الطلب كلها مثل "٢٥٠٠ كوب بمبلغ ١٤٠٠ ريال".
+- per_item سعر للحبة؛ per_package للكرتون أو الباكيت أو "الألف"؛ quoted_lot سعر إجمالي لكمية محددة. إن لم يتضح فاجعله null وأضف ambiguity بنوع pricing.
 - priceAmount: السعر الأساسي كما ورد، ولا تحسب إجماليات أبدًا. "٤٥ هللة" تعني 0.45.
 - packageLevels: هرمية العبوة ابتداءً من الوحدة المسعّرة نزولًا إلى الوحدة المفردة. "٢٠ باكيت في الكرتون، كل باكيت ٥٠ كوب" والسعر للكرتون تعني [{"label":"كرتون","count":20},{"label":"باكيت","count":50}]. "الألف كوب" تعني [{"label":"ألف كوب","count":1000}]. لا تضرب الأعداد بنفسك.
 - soldByPackageOnly: true فقط إن ذكر النص أن البيع بالعبوة الكاملة، false إن ذكر إمكانية التجزئة.
@@ -47,7 +48,7 @@ const list = (other: OtherRequirement[]) =>
   other.length ? other.map((o) => `- id="${o.id}": ${o.text}`).join("\n") : "(لا توجد)";
 
 const catalogNote = (category: CategoryId | null) =>
-  `فئات المنتجات. productCategory هي فئة المنتج المعروض فعلًا في النص حتى لو خالفت طلب المشتري. specs للمواصفات الخاصة بالفئة، بالمفاتيح المذكورة فقط، وما لم يذكره النص لا تضفه. cupSizeOz و wall للأكواب فقط:\n${catalogForPrompt(category)}`;
+  `فئات المنتجات. productCategory هي فئة المنتج المعروض فعلًا في النص حتى لو خالفت طلب المشتري. specs للمواصفات الخاصة بالفئة، بالمفاتيح المذكورة فقط، وما لم يذكره النص لا تضفه. cupSizeOz و wall للأكواب فقط. مثال: "منديل طبقتين ٣٣×٣٣ سم" يعني specs=[{"key":"ply","value":"2","quote":"طبقتين"},{"key":"napkinSize","value":"33×33","quote":"٣٣×٣٣ سم"}]. استخرج كل مواصفة مذكورة:\n${catalogForPrompt(category)}`;
 
 export const offerUser = (text: string, other: OtherRequirement[], category: CategoryId | null = null) =>
   `${catalogNote(category)}\n\nالشروط المطلوب مطابقتها:\n${list(other)}\n\nنص العرض:\n<data>\n${text}\n</data>`;

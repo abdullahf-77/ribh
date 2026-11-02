@@ -41,12 +41,12 @@ async function main() {
     state = { ...state, ...(p.requirements && { requirements: p.requirements }), ...(p.reqEvidence && { reqEvidence: p.reqEvidence }), ...(p.waived && { waived: p.waived }), ...(p.offers && { offers: p.offers }), ...(p.rejected && { rejected: p.rejected }), ...(p.priority && { priority: p.priority }), ...(p.analyzedOtherKey && { analyzedOtherKey: p.analyzedOtherKey }), ...(p.scenarioQuantity !== undefined && { scenarioQuantity: p.scenarioQuantity }) };
     if (input.text) history.push({ role: "user", text: input.text });
     history.push({ role: "assistant", text: r.reply });
-    console.log(`\n[${label}] (${r.replySource}) ${r.reply}\nblocks: ${r.blocks.map((b) => b.type).join(", ") || "none"}`);
+    console.log(`\n[${label}] (${r.replySource}, ${r.servedModel}) ${r.reply}\nblocks: ${r.blocks.map((b) => b.type).join(", ") || "none"}`);
     return r;
   };
 
   const first = await step("first message", { text: "السلام عليكم، أبي أكواب ورقية للمشروبات الساخنة لمقهاي في الرياض" });
-  check(first.replySource === "llama", "reply written by Llama");
+  check(first.replySource === "llama", "reply written by the model");
   check(state.requirements.city != null, "city understood");
 
   const second = await step("follow-up", { text: "٣٠٠٠ كوب مقاس ٨ أونصات مع أغطية" });

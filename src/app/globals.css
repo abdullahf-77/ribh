@@ -52,6 +52,8 @@
   --radius-m: var(--radius-m);
   --shadow-1: var(--shadow-1);
   --font-sans: var(--font-brand), Tahoma, sans-serif;
+  --font-display: var(--font-document), var(--font-brand), serif;
+  --font-figures: var(--font-figures-mono), ui-monospace, monospace;
 }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -87,3 +89,58 @@ mark.evidence { background: var(--c-mark); color: inherit; border-radius: 3px; p
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.9s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 3s; } * { transition: none !important; } }
+
+/* Quotation documents on a purchasing desk. The cut corner comes from the logo's sheets. */
+.sheet {
+  position: relative;
+  background: var(--c-surface);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-s);
+  box-shadow: 0 1px 0 rgb(21 51 80 / 0.04), 0 6px 18px -10px rgb(21 51 80 / 0.22);
+}
+.sheet::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(135deg, var(--c-canvas) 50%, var(--c-line) 50%, var(--c-line) calc(50% + 1px), var(--c-sunken) calc(50% + 1px));
+  border-bottom-right-radius: 3px;
+  pointer-events: none;
+}
+
+/* An invoice line: label, dotted leader, value. */
+.leader { display: flex; align-items: baseline; gap: 0.5rem; padding-block: 0.3rem; font-size: 0.875rem; }
+.leader > dt { color: var(--c-muted); flex-shrink: 0; max-width: 60%; }
+.leader::after { content: ""; order: 1; flex: 1; min-width: 1rem; border-bottom: 1px dotted var(--c-field-line); transform: translateY(-0.2em); }
+.leader > dd { order: 2; font-weight: 500; text-align: end; min-width: 0; }
+
+.price { font-family: var(--font-figures); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+
+/* The verdict, stamped on the document. */
+.stamp {
+  display: inline-block;
+  padding: 0.1rem 0.7rem;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.875rem;
+  transform: rotate(-2deg);
+  animation: stamp 260ms cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes stamp { from { opacity: 0; transform: rotate(-2deg) scale(1.25); } to { opacity: 1; transform: rotate(-2deg) scale(1); } }
+
+.rise { animation: rise 220ms ease-out; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.example { display: block; width: 100%; min-height: 2.75rem; padding: 0.55rem 0.25rem; text-align: start; color: var(--c-accent-text); transition: padding var(--motion); }
+.example:hover { padding-inline-start: 0.6rem; }
+
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+.fold > summary { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; min-height: 2.75rem; cursor: pointer; font-weight: 600; }
+.fold > summary::after { content: "+"; font-family: var(--font-figures); font-size: 1.1rem; color: var(--c-accent-text); }
+.fold[open] > summary::after { content: "−"; }
+
+@media (prefers-reduced-motion: reduce) { .rise, .stamp { animation: none; } .example { transition: none; } }

@@ -4,7 +4,7 @@ import { OtherRequirement } from "@/domain/schemas";
 import { extractOffer } from "@/llm/service";
 import { handle } from "../_lib";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const Input = z.object({
   offerId: z.enum(["A", "B", "C"]),

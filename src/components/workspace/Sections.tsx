@@ -16,32 +16,30 @@ import { displayValue, fieldLabel, fieldsFor } from "@/lib/fields";
 import { EvidenceLink, OfferResult, categoryCopy, Unknown, vatText } from "../chat/OfferResult";
 import { DiscountSection } from "../DiscountSection";
 import { OfferReview } from "../OfferReview";
-import { boolOptions, Button, Card, Chip, CopyButton, fromBool, Note, NumberField, SelectField, TextField, toBool } from "../ui";
+import { boolOptions, Button, Chip, CopyButton, fromBool, Note, NumberField, SelectField, TextField, toBool } from "../ui";
 
 const req3 = { required: "مطلوب", not_required: "غير مطلوب" };
 const SOURCE = { offer: "العرض الأصلي", reply: "رد المورد", user: "تعديلك" };
 const categoryOptions = Object.fromEntries(CATEGORY_IDS.map((c) => [c, CATEGORIES[c].label]));
 
-export const SECTIONS = [
-  { id: "requirements", label: "المتطلبات" },
-  { id: "offers", label: "العروض" },
-  { id: "comparison", label: "المقارنة" },
-  { id: "scenarios", label: "السيناريوهات والخصم" },
-  { id: "clarify", label: "توضيح الموردين" },
-  { id: "rfq", label: "طلب عرض السعر" },
-] as const;
-export type SectionId = (typeof SECTIONS)[number]["id"];
+export type SectionId = "requirements" | "rfq" | "offers" | "clarify" | "comparison" | "scenarios";
+export type WorkTab = "need" | "offers" | "decision";
+export const WORK_TABS: { id: WorkTab; label: string }[] = [{ id: "need", label: "احتياجي" }, { id: "offers", label: "العروض" }, { id: "decision", label: "القرار" }];
+export const TAB_OF: Record<SectionId, WorkTab> = { requirements: "need", rfq: "need", offers: "offers", clarify: "offers", comparison: "decision", scenarios: "decision" };
+export const SECTION_LABEL: Record<SectionId, string> = { requirements: "احتياجي", rfq: "طلب عرض السعر", offers: "العروض", clarify: "أسئلة الموردين", comparison: "القرار", scenarios: "القرار" };
 
-export function Section({ id, title, hint, actions, children }: { id: SectionId; title: string; hint?: string; actions?: React.ReactNode; children: React.ReactNode }) {
+export function Section({ id, title, hint, actions, sheet, children }: { id: SectionId; title?: string; hint?: string; actions?: React.ReactNode; sheet?: boolean; children: React.ReactNode }) {
   return (
-    <section id={`section-${id}`} aria-labelledby={`title-${id}`} className="scroll-mt-14 rounded-m border border-line bg-surface p-4 shadow-1 transition sm:p-5">
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h2 id={`title-${id}`} className="text-lg font-semibold">{title}</h2>
-          {hint && <p className="text-sm text-muted">{hint}</p>}
+    <section id={`section-${id}`} aria-label={title} className={`scroll-mt-16 ${sheet ? "sheet p-5 sm:p-7" : ""}`}>
+      {(title || actions) && (
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            {title && <h2 className="font-display text-2xl font-bold">{title}</h2>}
+            {hint && <p className="text-sm text-muted">{hint}</p>}
+          </div>
+          {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
         </div>
-        {actions && <div className="flex flex-wrap gap-2">{actions}</div>}
-      </div>
+      )}
       {children}
     </section>
   );
@@ -91,13 +89,13 @@ export function RequirementsSection({ state, conflicts, pendingSwitch, onRequire
   const empty = !r.category && !known.length;
 
   return (
-    <Section id="requirements" title="متطلبات الشراء" hint={cat ? `منتج واحد في كل مقارنة: ${cat.label}` : "تتحدّث من المحادثة ومن هنا."}
+    <Section id="requirements" sheet title={cat ? `طلب شراء: ${cat.label}` : "طلب شراء"}
       actions={<Button variant="ghost" aria-expanded={editing} onClick={() => { if (editing) { onEditDone(before); setBefore(null); } else setBefore(r); }}>{editing ? "تم" : "عدّل"}</Button>}>
       {pendingSwitch && r.category && (
         <div className="mb-3">
-          <Note tone="warn" title={`استبدال ${CATEGORIES[r.category].label} بـ ${CATEGORIES[pendingSwitch.to].label}؟`}
+          <Note tone="warn" title={`نستبدل ${CATEGORIES[r.category].label} بـ${CATEGORIES[pendingSwitch.to].label}؟`}
             actions={<><Button variant="primary" onClick={onConfirmSwitch}>نعم، ابدأ مقارنة جديدة</Button><Button onClick={onCancelSwitch}>أبقِ المقارنة الحالية</Button></>}>
-            سأمسح المواصفات والكمية والميزانية والعروض الحالية، وأبقي مدينة التوصيل فقط.
+            تنمسح المواصفات والكمية والميزانية والعروض، وتبقى مدينة التوصيل.
           </Note>
         </div>
       )}
@@ -111,15 +109,14 @@ export function RequirementsSection({ state, conflicts, pendingSwitch, onRequire
         </div>
       ))}
       {empty && !editing && (
-        <div className="rounded-s bg-sunken p-4 text-sm">
-          <p>لم تُحدَّد متطلبات بعد. اكتب ما تحتاجه للمساعد، أو املأها هنا مباشرة.</p>
+        <div className="text-sm">
+          <p>اكتب للمساعد وش تحتاج، أو املأ الطلب بنفسك.</p>
           <div className="mt-2 flex flex-wrap gap-2"><Button onClick={askAssistant}>تحدث مع المساعد</Button><Button onClick={() => setBefore(r)}>املأها يدويًا</Button></div>
         </div>
       )}
       {!editing && !empty && (
-        <dl className="grid gap-x-6 sm:grid-cols-2 xl:grid-cols-3">
-          {r.category && <ReqRow label="فئة المنتج" value={CATEGORIES[r.category].label} />}
-          {known.map((k) => <ReqRow key={k} label={reqFieldLabels[k]} value={reqValue(k, r[k])} quote={state.reqEvidence[k]} />)}
+        <dl className="grid gap-x-10 md:grid-cols-2">
+                    {known.map((k) => <ReqRow key={k} label={reqFieldLabels[k]} value={reqValue(k, r[k])} quote={state.reqEvidence[k]} />)}
           {specKeys.map((k) => <ReqRow key={k} label={reqLabel(`spec:${k}`)} value={reqValue(`spec:${k}`, r.specs[k])} quote={state.reqEvidence[`spec:${k}`]} />)}
           {r.other.map((o) => <ReqRow key={o.id} label={o.level === "mandatory" ? "شرط إلزامي" : "مفضّل"} value={o.text} />)}
         </dl>
@@ -154,7 +151,7 @@ export function RequirementsSection({ state, conflicts, pendingSwitch, onRequire
       )}
       {!empty && missing.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center gap-1 text-xs">
-          <span className="text-muted">لم يُحدَّد بعد:</span>
+          <span className="text-muted">باقي:</span>
           {missing.map((f) => <span key={f} title={questionFor(f)}><Chip tone="unknown">{reqLabel(f)}</Chip></span>)}
         </div>
       )}
@@ -163,16 +160,16 @@ export function RequirementsSection({ state, conflicts, pendingSwitch, onRequire
 }
 
 const ReqRow = ({ label, value, quote }: { label: string; value: string; quote?: string }) => (
-  <div className="flex justify-between gap-3 border-b border-line py-1.5 text-sm">
-    <dt className="text-muted">{label}</dt>
-    <dd className="text-end font-medium"><bdi>{value}</bdi>{quote && <span className="block text-xs font-normal text-muted" dir="auto">«{quote}»</span>}</dd>
+  <div className="leader" title={quote ? `من كلامك: ${quote}` : undefined}>
+    <dt>{label}</dt>
+    <dd><bdi>{value}</bdi></dd>
   </div>
 );
 
 const grid = "grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(100%,19rem),1fr))]";
 
-export function OfferCard({ offer, state, evaluation, onOffer, onConfirm, onWhy, onReply, onEditOpen, onEditDone, tick }: {
-  offer: OfferState; state: ConversationState; evaluation: Evaluation; onOffer: (o: OfferState) => void; onConfirm: () => void; onWhy: () => void; onReply: () => void; onEditOpen: () => void; onEditDone: () => void; tick: () => number;
+export function OfferCard({ offer, state, evaluation, onOffer, onConfirm, onWhy, onEditOpen, onEditDone, tick }: {
+  offer: OfferState; state: ConversationState; evaluation: Evaluation; onOffer: (o: OfferState) => void; onConfirm: () => void; onWhy: () => void; onEditOpen: () => void; onEditDone: () => void; tick: () => number;
 }) {
   const [editing, setEditing] = useState(false);
   const confirmed = state.confirmedOfferIds.includes(offer.id);
@@ -184,9 +181,9 @@ export function OfferCard({ offer, state, evaluation, onOffer, onConfirm, onWhy,
   const category = fieldValue<CategoryId>(offer, "productCategory");
   const mismatch = category && state.requirements.category && category !== state.requirements.category;
   return (
-    <Card className={`!p-4 ${editing ? "col-span-full" : ""}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold" dir="auto">{name}</h3>
+    <article className={`sheet rise p-4 ${editing ? "col-span-full" : ""}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-ink pb-2">
+        <h3 className="font-display text-xl font-bold" dir="auto">{name}</h3>
         {confirmed ? <Chip tone="meets">أكدته</Chip> : <Chip tone="unknown">بانتظار تأكيدك</Chip>}
       </div>
       {mismatch && <div className="mt-2"><Note tone="error">هذا العرض عن {CATEGORIES[category].label}، وطلبك عن {CATEGORIES[state.requirements.category!].label}. لن يدخل في المقارنة.</Note></div>}
@@ -196,12 +193,12 @@ export function OfferCard({ offer, state, evaluation, onOffer, onConfirm, onWhy,
           if (value == null && optional.has(key)) return null;
           const evidence = activeVersion(offer, key)?.evidence;
           return (
-            <div key={key} className="border-b border-line py-1 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <dt className="text-muted">{label}</dt>
-                <dd className="text-end font-medium">{value == null ? <Unknown /> : <bdi>{displayValue(key, value)}</bdi>}</dd>
+            <div key={key}>
+              <div className="leader">
+                <dt>{label}</dt>
+                <dd>{value == null ? <Unknown /> : <bdi>{displayValue(key, value)}</bdi>}</dd>
               </div>
-              {evidence && <EvidenceLink offer={offer} evidence={evidence} />}
+              {evidence && editing && <EvidenceLink offer={offer} evidence={evidence} />}
             </div>
           );
         })}
@@ -210,26 +207,25 @@ export function OfferCard({ offer, state, evaluation, onOffer, onConfirm, onWhy,
       {open > 0 && <p className="mt-1 text-sm text-unknown">نقاط ملتبسة: {open}. افتح «عدّل» لمراجعتها.</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         {!confirmed && <Button variant="primary" onClick={onConfirm}>أكّد العرض</Button>}
-        <Button aria-expanded={editing} onClick={() => { if (editing) onEditDone(); else onEditOpen(); setEditing(!editing); }}>{editing ? "تم" : "عدّل"}</Button>
+        <Button aria-expanded={editing} onClick={() => { if (editing) onEditDone(); else onEditOpen(); setEditing(!editing); }}>{editing ? "تم" : "عدّل وشوف الأدلة"}</Button>
         <Button variant="ghost" onClick={onWhy}>لماذا هذا العرض؟</Button>
-        <Button variant="ghost" onClick={onReply}>أضف رد المورد</Button>
       </div>
       {editing && <div className="mt-3"><OfferReview offer={offer} onOffer={onOffer} requirements={state.requirements} rejected={state.rejected[offer.id] ?? []} tick={tick} /></div>}
-    </Card>
+    </article>
   );
 }
 
 export type FailedOffer = { id: string; text: string; supplierHint: string | null; message: string };
 
-export function OffersSection({ state, failed, busy, onOffer, onConfirm, onWhy, onReply, onEditOpen, onEditDone, onPaste, onRetry, onManual, tick }: {
-  state: ConversationState; failed: FailedOffer[]; busy: boolean; onOffer: (o: OfferState) => void; onConfirm: (id: string) => void; onWhy: (id: string) => void; onReply: (id: string) => void;
+export function OffersSection({ state, failed, busy, onOffer, onConfirm, onWhy, onEditOpen, onEditDone, onPaste, onRetry, onManual, tick }: {
+  state: ConversationState; failed: FailedOffer[]; busy: boolean; onOffer: (o: OfferState) => void; onConfirm: (id: string) => void; onWhy: (id: string) => void;
   onEditOpen: () => void; onEditDone: (id: string) => void; onPaste: () => void; onRetry: (f: FailedOffer) => void; onManual: (f: FailedOffer) => void; tick: () => number;
 }) {
   const q = activeQuantity(state);
   return (
-    <Section id="offers" title="عروض الموردين" hint="من عرضين إلى ثلاثة لمنتج واحد. لا يدخل المقارنة إلا ما تؤكده."
+    <Section id="offers" title="عروض الموردين" hint={state.offers.length ? "لا يدخل القرار إلا ما تؤكده." : undefined}
       actions={state.offers.length < 3 ? <Button onClick={onPaste}>ألصق عرض مورد</Button> : undefined}>
-      {!state.offers.length && !failed.length && <p className="rounded-s bg-sunken p-4 text-sm">لا توجد عروض بعد. ألصقها في المحادثة كما وصلتك من واتساب أو البريد.</p>}
+      {!state.offers.length && !failed.length && <p className="py-6 text-lg text-muted">ألصق عرضين أو ثلاثة كما وصلتك من واتساب أو البريد.</p>}
       {failed.map((f) => (
         <div key={f.id} className="mb-3">
           <Note tone="error" title="تعذرت قراءة هذا العرض" actions={<><Button disabled={busy} onClick={() => onRetry(f)}>أعد المحاولة</Button><Button onClick={() => onManual(f)}>أدخله يدويًا</Button></>}>
@@ -240,38 +236,72 @@ export function OffersSection({ state, failed, busy, onOffer, onConfirm, onWhy, 
       <div className={grid}>
         {state.offers.map((o) => (
           <OfferCard key={o.id} offer={o} state={state} evaluation={evaluateOffer(resolveOffer(o), { ...state.requirements, quantity: q ?? 0 }, state.orderDate)} onOffer={onOffer}
-            onConfirm={() => onConfirm(o.id)} onWhy={() => onWhy(o.id)} onReply={() => onReply(o.id)} onEditOpen={onEditOpen} onEditDone={() => onEditDone(o.id)} tick={tick} />
+            onConfirm={() => onConfirm(o.id)} onWhy={() => onWhy(o.id)} onEditOpen={onEditOpen} onEditDone={() => onEditDone(o.id)} tick={tick} />
         ))}
       </div>
     </Section>
   );
 }
 
-const verdictTitle: Record<Decision["verdict"]["kind"], string> = {
-  recommend: "التوصية", recommend_open: "توصية مشروطة", tie: "تعادل", clarify: "لا توصية بعد: يلزم توضيح", none_eligible: "لا يوجد عرض مستوفٍ", not_comparable: "لا تصح المقارنة المباشرة",
+const verdictStamp: Record<Decision["verdict"]["kind"], { text: string; color: string }> = {
+  recommend: { text: "موصى به", color: "text-meets" }, recommend_open: { text: "توصية مشروطة", color: "text-accent-text" }, tie: { text: "تعادل", color: "text-accent-text" },
+  clarify: { text: "يلزم توضيح", color: "text-unknown" }, none_eligible: { text: "لا يوجد مستوفٍ", color: "text-not" }, not_comparable: { text: "لا تصح المقارنة", color: "text-unknown" },
 };
-const verdictTone = { recommend: "ok", recommend_open: "ok", tie: "info", clarify: "warn", none_eligible: "error", not_comparable: "warn" } as const;
 
-export function RecommendationBanner({ state, decision, onGo }: { state: ConversationState; decision: Decision | null; onGo: (s: SectionId) => void }) {
-  const pending = state.offers.length - confirmedOffers(state).length;
+/** Nothing resembling a recommendation appears until the engine has one. Until then, only what is left to do. */
+export function DecisionHero({ state, decision, onGo }: { state: ConversationState; decision: Decision | null; onGo: (s: SectionId) => void }) {
+  const confirmed = confirmedOffers(state).length;
   if (!decision) {
-    const msg = !state.requirements.quantity ? "حدد المنتج والكمية أولًا." : !state.offers.length ? "ألصق عرضين على الأقل لتظهر التوصية." : pending ? `أكّد ${pending === 1 ? "العرض المتبقي" : "العروض المتبقية"} لتظهر التوصية.` : "أضف عرضًا آخر لتتم المقارنة.";
-    return <Note tone="info" title="لا توجد توصية بعد">{msg}</Note>;
+    const steps = [
+      { done: !!state.requirements.quantity && !!state.requirements.category, text: "حدد المنتج والكمية", go: "requirements" as const },
+      { done: state.offers.length >= 2, text: "أضف عرضين على الأقل", go: "offers" as const },
+      { done: confirmed >= 2, text: "أكّد العروض بعد مراجعتها", go: "offers" as const },
+    ];
+    return (
+      <div className="py-4">
+        <h2 className="font-display text-2xl font-bold">القرار ينتظر</h2>
+        <ol className="mt-3 space-y-1">
+          {steps.map((s) => (
+            <li key={s.text} className="flex items-center gap-2">
+              <span aria-hidden className={`inline-flex size-5 items-center justify-center rounded-full border text-xs ${s.done ? "border-meets bg-meets-soft text-meets" : "border-field-line text-muted"}`}>{s.done ? "✓" : ""}</span>
+              {s.done ? <span className="text-muted line-through">{s.text}</span> : <button type="button" onClick={() => onGo(s.go)} className="min-h-9 text-accent-text underline underline-offset-2">{s.text}</button>}
+              <span className="sr-only">{s.done ? "تم" : "باقي"}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    );
   }
   const v = decision.verdict;
   const winnerId = v.kind === "recommend" || v.kind === "recommend_open" ? v.winnerId : null;
   const winner = decision.evaluations.find((e) => e.offerId === winnerId);
   const openOnes = decision.evaluations.filter((e) => e.category === "clarify");
-  const scenario = state.scenarioQuantity != null;
+  const stamp = verdictStamp[v.kind];
   return (
-    <Note tone={verdictTone[v.kind]} title={`${verdictTitle[v.kind]}${winner ? `: ${winner.label}` : ""}`}
-      actions={<><Button variant="ghost" onClick={() => onGo("comparison")}>التفاصيل</Button>{openOnes.length > 0 && <Button variant="ghost" onClick={() => onGo("clarify")}>وضّح الناقص</Button>}</>}>
-      {winner?.cost.totalHalalas != null && <p>تدفع {sar(winner.cost.totalHalalas)} لـ {qty(winner.cost.purchaseQty ?? 0)} وحدة. {scenario && `هذا سيناريو، وطلبك المعتمد ${qty(state.requirements.quantity ?? 0)}.`}</p>}
-      {v.kind === "recommend_open" && <p>الأفضل بين المؤكدة فقط. قد تتغير النتيجة بعد توضيح {openOnes.map((e) => e.label).join(" و")}، فلا يمكن الجزم بأنه الأرخص.</p>}
-      {v.kind === "none_eligible" && <p>{decision.evaluations.map((e) => `${e.label}: ${e.failReasons.map((r) => reasonText(r, e)).join("؛ ")}`).join(". ")}</p>}
-      {v.kind === "clarify" && <p>ما زالت معلومات تنقص: {openOnes.map((e) => e.label).join(" و")}.</p>}
-      {v.kind === "not_comparable" && <p>العروض المؤكدة تختلف في المواصفات. حدد المواصفة المطلوبة في المتطلبات.</p>}
-    </Note>
+    <div role="status" className="sheet rise p-5 sm:p-7">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <span key={v.kind} className={`stamp ${stamp.color}`}>{stamp.text}</span>
+          {winner && <h2 className="font-display mt-3 text-3xl font-bold sm:text-4xl" dir="auto">{winner.label}</h2>}
+        </div>
+        {winner?.cost.totalHalalas != null && (
+          <div className="text-end">
+            <p className="text-xs text-muted">تدفع</p>
+            <p className="price text-3xl font-semibold sm:text-4xl">{sar(winner.cost.totalHalalas)}</p>
+            <p className="text-xs text-muted">لـ <span className="price">{qty(winner.cost.purchaseQty ?? 0)}</span> وحدة</p>
+          </div>
+        )}
+      </div>
+      <div className="mt-3 space-y-1 text-sm">
+        {state.scenarioQuantity != null && <p className="font-medium text-accent-text">هذا سيناريو. طلبك المعتمد {qty(state.requirements.quantity ?? 0)} وحدة.</p>}
+        {v.kind === "recommend_open" && <p>الأفضل بين العروض المؤكدة فقط. قد تتغير النتيجة بعد توضيح {openOnes.map((e) => e.label).join(" و")}.</p>}
+        {v.kind === "tie" && <p>متساويان في أولويتك والمبلغ. فرّق بينهما بشروط أخرى كالدفع.</p>}
+        {v.kind === "none_eligible" && <ul className="space-y-0.5">{decision.evaluations.map((e) => <li key={e.offerId}><bdi>{e.label}</bdi>: {e.failReasons.map((r) => reasonText(r, e)).join("؛ ")}</li>)}</ul>}
+        {v.kind === "clarify" && <p>ينقص توضيح من {openOnes.map((e) => e.label).join(" و")}.</p>}
+        {v.kind === "not_comparable" && <p>العروض المؤكدة تختلف في المواصفات. حدد المواصفة المطلوبة في «احتياجي».</p>}
+      </div>
+      {openOnes.length > 0 && <div className="mt-2"><Button variant="ghost" onClick={() => onGo("clarify")}>وضّح الناقص</Button></div>}
+    </div>
   );
 }
 
@@ -282,7 +312,7 @@ function ComparisonTable({ d, winnerId }: { d: Decision; winnerId: string | null
       {d.evaluations.map((e) => <td key={e.offerId} className="px-2 py-1.5 text-sm">{cell(e)}</td>)}
     </tr>
   );
-  const money = (h: number | null | undefined) => (h == null ? <Unknown /> : sar(h));
+  const money = (h: number | null | undefined) => (h == null ? <Unknown /> : <span className="price">{sar(h)}</span>);
   return (
     <table className="w-full min-w-[34rem] table-fixed text-start">
       <caption className="sr-only">مقارنة العروض وتفصيل التكلفة</caption>
@@ -296,10 +326,10 @@ function ComparisonTable({ d, winnerId }: { d: Decision; winnerId: string | null
         {metric("التوصيل", (e) => (e.cost.deliveryHalalas === 0 ? "مجاني" : money(e.cost.deliveryHalalas)))}
         {metric("رسوم أخرى", (e) => (e.cost.chargesHalalas ? sar(e.cost.chargesHalalas) : "لا توجد مذكورة"))}
         {metric("الضريبة", (e) => vatText(e.cost) ?? <Unknown />)}
-        {metric("ما ستدفعه", (e) => (e.cost.totalHalalas != null ? <strong>{sar(e.cost.totalHalalas)}</strong> : e.cost.knownSubtotalHalalas != null ? <>{sar(e.cost.knownSubtotalHalalas)} <span className="text-xs text-unknown">+ غير معروف</span></> : <Unknown />))}
-        {metric("كمية الشراء", (e) => (e.cost.purchaseQty != null ? qty(e.cost.purchaseQty) : <Unknown />))}
-        {metric("الفائض", (e) => (e.cost.excess != null ? qty(e.cost.excess) : <Unknown />))}
-        {metric("تكلفة الوحدة", (e) => (e.cost.comparableUnitSar ? `${e.cost.comparableUnitSar} ريال` : <Unknown />))}
+        {metric("ما ستدفعه", (e) => (e.cost.totalHalalas != null ? <strong className="price">{sar(e.cost.totalHalalas)}</strong> : e.cost.knownSubtotalHalalas != null ? <>{sar(e.cost.knownSubtotalHalalas)} <span className="text-xs text-unknown">+ غير معروف</span></> : <Unknown />))}
+        {metric("كمية الشراء", (e) => (e.cost.purchaseQty != null ? <span className="price">{qty(e.cost.purchaseQty)}</span> : <Unknown />))}
+        {metric("الفائض", (e) => (e.cost.excess != null ? <span className="price">{qty(e.cost.excess)}</span> : <Unknown />))}
+        {metric("تكلفة الوحدة", (e) => (e.cost.comparableUnitSar ? <span className="price">{e.cost.comparableUnitSar} ريال</span> : <Unknown />))}
         {metric("الميزانية", (e) => (e.budget.status === "not_set" ? "غير محددة" : e.budget.status === "within" ? <Chip tone="meets">ضمن</Chip> : e.budget.status === "over" ? <Chip tone="not">تتجاوز</Chip> : <Unknown />))}
         {metric("التسليم", (e) => (e.delivery.status === "unknown" ? <Unknown>غير مؤكد</Unknown> : e.delivery.arrival ? <Chip tone={e.delivery.status === "not" ? "not" : e.delivery.status === "meets" ? "meets" : "neutral"}>{formatDate(e.delivery.arrival)}</Chip> : "—"))}
       </tbody>
@@ -308,19 +338,19 @@ function ComparisonTable({ d, winnerId }: { d: Decision; winnerId: string | null
 }
 
 export function ComparisonSection({ state, decision, onReply }: { state: ConversationState; decision: Decision | null; onReply: (id: string) => void }) {
+  if (!decision) return null;
   const winnerId = decision && (decision.verdict.kind === "recommend" || decision.verdict.kind === "recommend_open") ? decision.verdict.winnerId : null;
   const reqAt = { ...state.requirements, quantity: activeQuantity(state) };
   return (
-    <Section id="comparison" title="نتائج المقارنة وتفصيل التكلفة" hint="تحسبها قواعد التطبيق، وليست من النموذج.">
-      {!decision && <p className="rounded-s bg-sunken p-4 text-sm">تظهر المقارنة بعد تأكيد عرضين وتحديد الكمية.</p>}
+    <Section id="comparison" title="كيف قارنا" hint="الأرقام من قواعد التطبيق، وليست من النموذج.">
       {decision && (
         <>
           <div className="hidden overflow-x-auto md:block"><ComparisonTable d={decision} winnerId={winnerId} /></div>
           <div className={`${grid} md:hidden`}>
             {decision.evaluations.map((e) => <OfferResult key={e.offerId} e={e} offer={state.offers.find((o) => o.id === e.offerId)!} isWinner={e.offerId === winnerId} requirements={reqAt} onReply={onReply} />)}
           </div>
-          <details className="mt-3 hidden md:block">
-            <summary className="min-h-9 cursor-pointer py-1 text-sm font-medium">مطابقة شروطك وأدلتها لكل عرض</summary>
+          <details className="fold mt-3 hidden border-t border-line pt-1 md:block">
+            <summary>مطابقة شروطك وأدلتها لكل عرض</summary>
             <div className={`${grid} mt-2`}>
               {decision.evaluations.map((e) => <OfferResult key={e.offerId} e={e} offer={state.offers.find((o) => o.id === e.offerId)!} isWinner={e.offerId === winnerId} requirements={reqAt} onReply={onReply} />)}
             </div>
@@ -331,41 +361,51 @@ export function ComparisonSection({ state, decision, onReply }: { state: Convers
   );
 }
 
-export function ScenarioSection({ state, onScenario, onAdopt, onRequirements, onPriority, onOrderDate }: {
-  state: ConversationState; onScenario: (q: number | null) => void; onAdopt: () => void; onRequirements: (r: Requirements) => void; onPriority: (p: Priority) => void; onOrderDate: (d: string) => void;
+export function ScenarioSection({ state, decision, onScenario, onAdopt, onRequirements, onPriority, onOrderDate }: {
+  state: ConversationState; decision: Decision | null; onScenario: (q: number | null) => void; onAdopt: () => void; onRequirements: (r: Requirements) => void; onPriority: (p: Priority) => void; onOrderDate: (d: string) => void;
 }) {
+  if (!decision) return null;
   const r = state.requirements;
   const q = activeQuantity(state);
   const offers = confirmedOffers(state);
   const hasTiers = offers.some((o) => (fieldValue<unknown[]>(o, "tiers") ?? []).length);
   return (
-    <Section id="scenarios" title="السيناريوهات وخصم الكمية" hint="يعاد الحساب فورًا دون طلب جديد من النموذج.">
-      {state.scenarioQuantity != null && (
-        <div className="mb-3">
-          <Note tone="info" title={`تعرض الآن سيناريو ${qty(state.scenarioQuantity)} وحدة`} actions={<><Button variant="primary" onClick={onAdopt}>اعتمد هذه الكمية</Button><Button onClick={() => onScenario(null)}>عد إلى {qty(r.quantity ?? 0)}</Button></>}>
-            طلبك المعتمد ما زال {qty(r.quantity ?? 0)} وحدة حتى تعتمد التغيير.
-          </Note>
-        </div>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <NumberField label="جرّب كمية" integer value={q} onChange={(v) => { if (v) onScenario(v === r.quantity ? null : v); }} />
-        <NumberField label="الميزانية (ريال)" value={r.budgetSar} onChange={(v) => onRequirements({ ...r, budgetSar: v })} />
-        <TextField label="موعد الاستلام" type="date" value={r.requiredDate} onChange={(v) => onRequirements({ ...r, requiredDate: v })} />
-        <TextField label="تاريخ الطلب" type="date" hint="تُحسب منه مدد التسليم" value={state.orderDate} onChange={(v) => v && onOrderDate(v)} />
+    <Section id="scenarios" title="جرّب قبل ما تقرر">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-40"><NumberField label="الكمية" integer value={q} onChange={(v) => { if (v) onScenario(v === r.quantity ? null : v); }} /></div>
+        {state.scenarioQuantity != null && (
+          <div className="flex flex-wrap gap-2">
+            <Button variant="primary" onClick={onAdopt}>اعتمد {qty(state.scenarioQuantity)}</Button>
+            <Button onClick={() => onScenario(null)}>عد إلى {qty(r.quantity ?? 0)}</Button>
+          </div>
+        )}
       </div>
-      <fieldset className="mt-3">
+      <fieldset className="mt-4">
         <legend className="mb-1 text-sm font-medium">ما أولويتك؟</legend>
         <div className="flex flex-wrap gap-2">
           {(Object.keys(priorityLabels) as Priority[]).map((k) => (
-            <label key={k} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-s border px-3 text-sm ${state.priority === k ? "border-accent bg-accent-soft font-medium text-accent-text" : "border-line"}`}>
+            <label key={k} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-s border px-3 text-sm transition ${state.priority === k ? "border-accent bg-accent-soft font-medium text-accent-text" : "border-line bg-surface"}`}>
               <input type="radio" name="priority" className="size-4" checked={state.priority === k} onChange={() => onPriority(k)} />
               {priorityLabels[k]}
             </label>
           ))}
         </div>
       </fieldset>
-      <div className="mt-4 border-t border-line pt-3">
-        {hasTiers && q ? <DiscountSection offers={offers} requirements={{ ...r, quantity: q }} /> : <p className="text-sm text-muted">لا يوجد خصم كمية صريح في العروض المؤكدة، فلا نفترض خصمًا.</p>}
+      <div className="mt-4 divide-y divide-line border-y border-line">
+        {hasTiers && q && (
+          <details className="fold py-1">
+            <summary>خصم الكمية</summary>
+            <div className="pb-3"><DiscountSection offers={offers} requirements={{ ...r, quantity: q }} /></div>
+          </details>
+        )}
+        <details className="fold py-1">
+          <summary>الميزانية والموعد</summary>
+          <div className="grid gap-3 pb-3 sm:grid-cols-3">
+            <NumberField label="الميزانية (ريال)" value={r.budgetSar} onChange={(v) => onRequirements({ ...r, budgetSar: v })} />
+            <TextField label="موعد الاستلام" type="date" value={r.requiredDate} onChange={(v) => onRequirements({ ...r, requiredDate: v })} />
+            <TextField label="تاريخ الطلب" type="date" hint="تُحسب منه مدد التسليم" value={state.orderDate} onChange={(v) => v && onOrderDate(v)} />
+          </div>
+        </details>
       </div>
     </Section>
   );
@@ -449,12 +489,11 @@ function ClarifyOffer({ offer, state, proposal, busy, onSendReply, onApply, onCa
   const otherLabels = Object.fromEntries(state.requirements.other.map((o) => [o.id, o.text]));
   const decisive = questions.filter((x) => x.decisive).length;
   return (
-    <Card className="!p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold" dir="auto">{name}</h3>
-        {decisive > 0 ? <Chip tone="unknown">نقاط قد تغيّر القرار: {decisive}</Chip> : <Chip>لا ينقص ما يغيّر القرار</Chip>}
-      </div>
-      <div className="mt-3 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr))]">
+    <details className="fold" open={!!proposal || undefined}>
+      <summary>
+        <span className="flex min-w-0 flex-wrap items-center gap-2"><bdi>{name}</bdi>{decisive > 0 ? <Chip tone="unknown">ينقص {decisive}</Chip> : <span className="text-xs font-normal text-muted">لا ينقص ما يغيّر القرار</span>}</span>
+      </summary>
+      <div className="mb-3 grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,17rem),1fr))]">
         <div>
           <label htmlFor={`ask-${offer.id}`} className="mb-1 block text-sm font-medium">رسالة للمورد</label>
           {message ? (
@@ -474,7 +513,7 @@ function ClarifyOffer({ offer, state, proposal, busy, onSendReply, onApply, onCa
       </div>
       {proposal && <ProposalCard proposal={proposal} otherLabels={otherLabels} onApply={onApply} onCancel={onCancel} />}
       {history.length > 0 && (
-        <details className="mt-3 border-t border-line pt-1">
+        <details className="mb-3 border-t border-line pt-1">
           <summary className="min-h-9 cursor-pointer py-1 text-sm font-medium">سجل التغييرات</summary>
           <ol className="space-y-1 text-sm">
             {history.map((h, i) => (
@@ -490,17 +529,17 @@ function ClarifyOffer({ offer, state, proposal, busy, onSendReply, onApply, onCa
           ))}
         </details>
       )}
-    </Card>
+    </details>
   );
 }
 
 export function ClarifySection({ state, proposals, busy, onSendReply, onApply, onCancel }: {
   state: ConversationState; proposals: ReplyProposal[]; busy: boolean; onSendReply: (offerId: string, text: string) => void; onApply: (p: ReplyProposal, c: Record<string, ConflictChoice>, s: Set<string>) => void; onCancel: (p: ReplyProposal) => void;
 }) {
+  if (!state.offers.length) return null;
   return (
-    <Section id="clarify" title="توضيح الموردين" hint="أسئلة مبنية على الناقص فعليًا. انسخها وأرسلها بنفسك؛ لا أرسل شيئًا.">
-      {!state.offers.length && <p className="rounded-s bg-sunken p-4 text-sm">تظهر الأسئلة بعد إضافة العروض.</p>}
-      <div className="space-y-3">
+    <Section id="clarify" title="أسئلة الموردين" hint="مبنية على الناقص فعليًا. انسخها وأرسلها بنفسك.">
+      <div className="divide-y divide-line border-y border-line">
         {state.offers.map((o) => {
           const proposal = proposals.find((p) => p.offerId === o.id) ?? null;
           return <ClarifyOffer key={o.id} offer={o} state={state} proposal={proposal} busy={busy} onSendReply={(t) => onSendReply(o.id, t)} onApply={(c, s) => proposal && onApply(proposal, c, s)} onCancel={() => proposal && onCancel(proposal)} />;
@@ -515,28 +554,34 @@ export type RfqDraft = { message: string; source: "llama" | "template"; reason: 
 export function RfqSection({ state, draft, busy, onGenerate, onEdit }: { state: ConversationState; draft: RfqDraft | null; busy: boolean; onGenerate: (includeBudget: boolean) => void; onEdit: (message: string) => void }) {
   const r = state.requirements;
   const [includeBudget, setIncludeBudget] = useState(false);
+  if (!r.category) return null;
   const gaps = rfqGaps(r);
   const blocked = gaps.filter((g) => g.blocking);
   const stale = draft && draft.forKey !== JSON.stringify(r);
   return (
-    <Section id="rfq" title="طلب عرض السعر" hint="رسالة موحدة ترسلها بنفسك للموردين، ولو قبل وصول أي عرض.">
-      {blocked.length > 0 && <p className="mb-2 rounded-s bg-sunken p-3 text-sm">قبل التجهيز أحتاج: {blocked.map((g) => g.question).join(" ")}</p>}
-      {!blocked.length && gaps.length > 0 && <p className="mb-2 text-sm text-muted">لم يُحدَّد بعد، فلن يُذكر في الرسالة: {gaps.map((g) => reqLabel(g.field)).join("، ")}.</p>}
-      {stale && <div className="mb-2"><Note tone="warn" title="تغيّرت متطلباتك بعد هذه المسودة">أعد التجهيز حتى تطابق الرسالة طلبك الحالي.</Note></div>}
-      {r.budgetSar != null && (
-        <label className="mb-2 flex min-h-9 items-center gap-2 text-sm">
-          <input type="checkbox" className="size-4" checked={includeBudget} onChange={(e) => setIncludeBudget(e.target.checked)} />
-          أظهر ميزانيتي للمورد ({qty(r.budgetSar)} ريال). مخفية ما لم تفعّل هذا الخيار.
-        </label>
-      )}
-      <Button variant={draft ? "secondary" : "primary"} busy={busy} disabled={blocked.length > 0} onClick={() => onGenerate(includeBudget)}>{draft ? "أعد التجهيز" : "جهّز طلب عرض سعر"}</Button>
-      {draft && (
-        <div className="mt-3">
-          <div className="mb-1">{draft.source === "llama" ? <Chip tone="accent">صياغة Llama بعد التحقق</Chip> : <Chip>{draft.reason === "demo" ? "قالب جاهز (وضع التجربة)" : "قالب جاهز بعد تعذر صياغة موثوقة"}</Chip>}</div>
-          <textarea aria-label="نص طلب عرض السعر" className="field min-h-72 text-sm" dir="auto" value={draft.message} onChange={(e) => onEdit(e.target.value)} />
-          <div className="mt-2"><CopyButton text={draft.message} label="انسخ الرسالة" /></div>
+    <section id="section-rfq" className="scroll-mt-16 border-y border-line">
+      <details className="fold py-1" open={!!draft || undefined}>
+        <summary>طلب عرض سعر للموردين</summary>
+        <div className="pb-4">
+          {blocked.length > 0 && <p className="mb-2 text-sm">قبل التجهيز أحتاج: {blocked.map((g) => g.question).join(" ")}</p>}
+          {!blocked.length && gaps.length > 0 && <p className="mb-2 text-sm text-muted">لن يُذكر ما لم تحدده: {gaps.map((g) => reqLabel(g.field)).join("، ")}.</p>}
+          {stale && <div className="mb-2"><Note tone="warn" title="تغيّر طلبك بعد هذه المسودة">أعد التجهيز حتى تطابق الرسالة طلبك الحالي.</Note></div>}
+          {r.budgetSar != null && (
+            <label className="mb-2 flex min-h-9 items-center gap-2 text-sm">
+              <input type="checkbox" className="size-4" checked={includeBudget} onChange={(e) => setIncludeBudget(e.target.checked)} />
+              أظهر ميزانيتي للمورد. مخفية ما لم تفعّل هذا الخيار.
+            </label>
+          )}
+          <Button variant={draft ? "secondary" : "primary"} busy={busy} disabled={blocked.length > 0} onClick={() => onGenerate(includeBudget)}>{draft ? "أعد التجهيز" : "جهّز الرسالة"}</Button>
+          {draft && (
+            <div className="sheet rise mt-3 p-4">
+              <p className="mb-1 text-xs text-muted">{draft.source === "llama" ? "صياغة الذكاء الاصطناعي بعد التحقق" : draft.reason === "demo" ? "قالب جاهز (وضع التجربة)" : "قالب جاهز بعد تعذر صياغة موثوقة"}</p>
+              <textarea aria-label="نص طلب عرض السعر" className="min-h-64 w-full resize-y border-0 bg-transparent text-sm leading-7 outline-none" dir="auto" value={draft.message} onChange={(e) => onEdit(e.target.value)} />
+              <div className="mt-2 border-t border-line pt-2"><CopyButton text={draft.message} label="انسخ الرسالة" /></div>
+            </div>
+          )}
         </div>
-      )}
-    </Section>
+      </details>
+    </section>
   );
 }

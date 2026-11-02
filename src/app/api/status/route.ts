@@ -6,5 +6,5 @@ export const dynamic = "force-dynamic";
 // Tells the UI which mode it is in. Never returns the key.
 export function GET() {
   const cfg = readConfig();
-  return NextResponse.json({ mode: cfg ? "live" : "demo", model: cfg?.model ?? null });
+  return NextResponse.json({ mode: cfg ? "live" : "demo", model: cfg?.model ?? null, fallbackConfigured: !!cfg?.fallback, fallbackModel: cfg?.fallback?.model ?? null });
 }

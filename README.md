@@ -112,6 +112,10 @@ Checked 2026-11-01 against live data, because many tutorials are out of date:
 
 The default is therefore OpenRouter with Llama 4 Maverick and strict JSON schema. Requests try Parasail first (`LLAMA_HOST_ORDER`): measured on 2026-11-01, one offer took about 10 seconds there and about 66 on the default route, at about twice the cost per call. Other hosts of the same model remain as fallback, and a slow fallback can still cause timeouts. The adapter works with any OpenAI-compatible host through environment variables. It refuses a model name without "llama", refuses a response reporting a different model, and on OpenRouter asks only for hosts that honor the schema.
 
+**Hosts in the current deployment (owner's decision, 2026-11-02):** the main model is `qwen/qwen3.8-27b` on Groq, and the backup is `meta-llama/llama-4-maverick` on OpenRouter. Groq no longer offers a Llama chat model, and the OpenRouter balance is nearly empty. **So most replies currently come from Qwen, not Llama.** Each reply is labelled with the model that actually wrote it. Non-Llama models are refused unless named in `LLAMA_EXTRA_ALLOWED_MODELS`, and a request falls back after the main host fails for any reason. Calculations do not depend on the model.
+
+Measured on Groq's free tier on 2026-11-02 for this model: 1,000 output tokens per minute and 8,000 total tokens per minute, with 1,000 requests per day. One offer uses about 550 output tokens, so offers are read one at a time, waiting up to 50 seconds per request for the limit to clear. Three offers can take a minute or two, and several simultaneous users will see errors with a retry button. A variant that asked the model to omit empty fields was rejected: it saved tokens but dropped real prices and invented details. Other Groq models tested were worse: GPT-OSS uses about 3,300 input tokens per request and rejected the planning schema, and ALLaM does not support JSON schema output.
+
 **Licence:** Llama is used under Meta's [Llama 4 Community License](https://www.llama.com/llama4/license/). The app displays "Built with Llama" as that licence requires.
 
 ## Setup
@@ -173,7 +177,7 @@ The app uses server routes, so it needs a Node host, not static hosting such as 
 2. Add `LLAMA_API_KEY` (and optionally `LLAMA_BASE_URL`, `LLAMA_MODEL`) under Environment Variables.
 3. Deploy, then confirm the header shows "التحليل يعمل عبر Llama" and run the full-journey example.
 
-Routes declare `maxDuration = 120`, and `.vercelignore` keeps env files out of the upload. The rate limiter is per server instance and best-effort, so set a spending limit on the provider key as well.
+Routes declare `maxDuration = 300`, and `.vercelignore` keeps env files out of the upload. The rate limiter is per server instance and best-effort, so set a spending limit on the provider key as well.
 
 ## Demo scenarios
 

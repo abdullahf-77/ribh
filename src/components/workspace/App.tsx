@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { activeQuantity, currentDecision, initialState, otherKey, resetForCategory, setRequirementValue } from "@/chat/state";
 import type { Block, ConversationState, TurnEvent, TurnResponse } from "@/chat/types";
-import { brand, limits } from "@/config/brand";
+import { limits } from "@/config/brand";
 import { rawOffer } from "@/demo/build";
+import { demoPaths } from "@/demo/chat-script";
 import { CATEGORIES, CategoryId } from "@/domain/categories";
 import type { Decision, Priority } from "@/domain/decision";
 import { newOfferState, validateRawOffer } from "@/domain/evidence";
@@ -14,11 +15,10 @@ import { applyReplyProposal, ConflictChoice, ReplyProposal } from "@/domain/repl
 import type { Requirements } from "@/domain/schemas";
 import { ApiError, post, todayIso } from "@/lib/api";
 import { BrandLogo } from "../Brand";
-import { Button, Note } from "../ui";
+import { Button } from "../ui";
 import { ChatPanel, Composer, Message } from "./ChatPanel";
-import { ClarifySection, ComparisonSection, ConflictItem, FailedOffer, OffersSection, RecommendationBanner, reqLabel, reqValue, RequirementsSection, RfqDraft, RfqSection, ScenarioSection, SectionId, SECTIONS } from "./Sections";
-
-const GREETING = "أهلًا، أنا رِبح. أساعدك في شراء مستلزمات مقهاك: الأكواب والأغطية والأكياس والمناديل وعبوات السفري. أخبرني بما تحتاجه، وستظهر التفاصيل في مساحة العمل بجانبي.";
+import { Opening } from "./Opening";
+import { ClarifySection, ComparisonSection, ConflictItem, DecisionHero, FailedOffer, OffersSection, reqLabel, reqValue, RequirementsSection, RfqDraft, RfqSection, ScenarioSection, SectionId, TAB_OF, WORK_TABS, WorkTab } from "./Sections";
 
 const SECTION_FOR: Partial<Record<Block["type"], SectionId>> = {
   requirements: "requirements", req_conflict: "requirements", offer: "offers", offer_failed: "offers", rfq: "rfq", comparison: "comparison", discount: "scenarios", proposal: "clarify",
@@ -26,11 +26,11 @@ const SECTION_FOR: Partial<Record<Block["type"], SectionId>> = {
 
 export function WorkspaceApp() {
   const [mode, setMode] = useState<"live" | "demo" | null>(null);
+  const [liveModel, setLiveModel] = useState<string | null>(null);
   const [state, setStateRaw] = useState<ConversationState>(() => initialState(todayIso()));
   const stateRef = useRef(state);
   const setState = useCallback((next: ConversationState) => { stateRef.current = next; setStateRaw(next); }, []);
-  const greeting = (): Message[] => [{ id: 0, role: "assistant", text: GREETING, targets: [] }];
-  const [messages, setMessages] = useState<Message[]>(greeting);
+  const [messages, setMessages] = useState<Message[]>([]);
   const messagesRef = useRef(messages);
   const [busy, setBusy] = useState(false);
   const [composer, setComposer] = useState<Composer>({ kind: "chat" });
@@ -41,7 +41,9 @@ export function WorkspaceApp() {
   const [rfq, setRfq] = useState<RfqDraft | null>(null);
   const [pendingSwitch, setPendingSwitch] = useState<{ to: CategoryId; text: string | null } | null>(null);
   const [chooseReply, setChooseReply] = useState<string | null>(null);
-  const [flash, setFlash] = useState<SectionId | null>(null);
+  const [workTab, setWorkTab] = useState<WorkTab>("need");
+  const [demoPath, setDemoPath] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
   const nextId = useRef(1);
   const clock = useRef(Date.now());
   const tick = useCallback(() => ++clock.current, []);
@@ -49,7 +51,7 @@ export function WorkspaceApp() {
   const offerEditBefore = useRef<Decision | null>(null);
 
   useEffect(() => {
-    fetch("/api/status").then((r) => r.json()).then((d) => setMode(d.mode)).catch(() => setMode("demo"));
+    fetch("/api/status").then((r) => r.json()).then((d) => { setMode(d.mode); setLiveModel(d.model); }).catch(() => setMode("demo"));
   }, []);
 
   const decision = useMemo(() => currentDecision(state), [state]);
@@ -60,8 +62,7 @@ export function WorkspaceApp() {
 
   const goTo = useCallback((s: SectionId) => {
     setTab("comparison");
-    setFlash(s);
-    setTimeout(() => setFlash(null), 1600);
+    setWorkTab(TAB_OF[s]);
     requestAnimationFrame(() => document.getElementById(`section-${s}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, []);
 
@@ -97,11 +98,12 @@ export function WorkspaceApp() {
         if (b.type === "choose_offer") setChooseReply(b.text);
       }
       const targets = [...new Set(out.blocks.map((b) => SECTION_FOR[b.type]).filter((x): x is SectionId => !!x))];
+      if (targets.length) setWorkTab(targets.some((t) => TAB_OF[t] === "decision") ? "decision" : targets.some((t) => TAB_OF[t] === "offers") ? "offers" : "need");
       const madeResult = out.blocks.some((b) => b.type === "comparison");
       const d = madeResult ? currentDecision(next) : null;
-      append({ role: "assistant", text: out.reply, source: out.replySource, targets, resultKey: d ? decisionFingerprint(d) : undefined });
+      append({ role: "assistant", text: out.reply, source: out.replySource, model: out.servedModel, targets, resultKey: d ? decisionFingerprint(d) : undefined });
       if (out.blocks.some((b) => b.type === "reanalyze") && otherKey(next.requirements) !== next.analyzedOtherKey) {
-        append({ role: "assistant", text: "شروطك الأخرى تغيرت، فتبقى مطابقتها «غير معروف» حتى أعيد قراءة العروض.", source: "computed", targets: [], action: "reanalyze" });
+        append({ role: "assistant", text: "شروطك الأخرى تغيرت، وأحتاج أعيد قراءة العروض لمطابقتها.", source: "computed", targets: [], action: "reanalyze" });
       }
     } catch (e) {
       const err = e as ApiError;
@@ -137,9 +139,12 @@ export function WorkspaceApp() {
   const startOver = useCallback(() => {
     setState(initialState(todayIso()));
     resetSessionData();
-    messagesRef.current = greeting();
-    setMessages(messagesRef.current);
+    messagesRef.current = [];
+    setMessages([]);
     setComposer({ kind: "chat" });
+    setDemoPath(null);
+    setWorkTab("need");
+    setConfirmReset(false);
   }, [resetSessionData, setState]);
 
   const confirmSwitch = useCallback(() => {
@@ -206,12 +211,11 @@ export function WorkspaceApp() {
     const next = { ...s, offers: s.offers.map((o) => (o.id === updated.id ? updated : o)) };
     setState(next);
     setProposals((all) => all.filter((x) => x.replyId !== p.replyId));
+    setWorkTab("decision");
     const after = currentDecision(next);
     const lines = before && after ? explainDecisionChange(before, after, updated.id) : [`طبّقت التغييرات على ${offerName(updated)}. أكّد العروض لأقارن بينها.`];
     append({ role: "assistant", text: lines.join("\n"), source: "computed", targets: ["comparison"], resultKey: after ? decisionFingerprint(after) : undefined });
-    goTo("comparison");
-    setTab("assistant");
-  }, [append, goTo, setState, tick]);
+  }, [append, setState, tick]);
 
   const setRequirements = useCallback((r: Requirements) => setState({ ...stateRef.current, requirements: r }), [setState]);
 
@@ -255,28 +259,48 @@ export function WorkspaceApp() {
   const setPriority = useCallback((p: Priority) => setState({ ...stateRef.current, priority: p }), [setState]);
   const setOrderDate = useCallback((d: string) => setState({ ...stateRef.current, orderDate: d }), [setState]);
 
-  const sectionClass = (s: SectionId) => (flash === s ? "rounded-m ring-2 ring-accent transition" : "");
   const q = activeQuantity(state);
+  const onTabKey = (e: React.KeyboardEvent, i: number) => {
+    const delta = e.key === "ArrowLeft" ? 1 : e.key === "ArrowRight" ? -1 : 0;
+    if (!delta) return;
+    e.preventDefault();
+    const next = WORK_TABS[(i + delta + WORK_TABS.length) % WORK_TABS.length].id;
+    setWorkTab(next);
+    requestAnimationFrame(() => document.getElementById(`tab-${next}`)?.focus());
+  };
+
+  if (!messages.length) {
+    return (
+      <Opening mode={mode} onSend={(text) => { send(text, { kind: "chat" }); }}
+        onDemo={(id) => { const p = demoPaths.find((x) => x.id === id)!; setDemoPath(id); send(p.steps[0].text, { kind: "chat" }); }} />
+    );
+  }
+
+  const badge = (id: WorkTab) => {
+    if (id === "offers" && state.offers.length) return <span className="price ms-1.5 text-xs">{state.offers.length}</span>;
+    if (id === "decision" && decision) return <span aria-hidden className="ms-1.5 inline-block size-1.5 rounded-full bg-green align-middle" />;
+    return null;
+  };
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-2 sm:px-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <BrandLogo className="h-10 w-auto shrink-0" />
-          <div className="hidden min-w-0 md:block">
-            <p className="truncate text-sm font-semibold">{brand.tagline}</p>
-            <p className="truncate text-xs text-muted">{brand.descriptor}</p>
-          </div>
-        </div>
+      <header className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-1.5 sm:px-4">
+        <BrandLogo className="h-9 w-auto shrink-0" />
         <div className="flex items-center gap-2">
-          {mode === "demo" && <span className="hatch rounded-s px-2 py-1 text-xs font-medium text-unknown">وضع تجربة: أمثلة خيالية، ليس Llama مباشر</span>}
-          {mode === "live" && <span className="rounded-s bg-accent-soft px-2 py-1 text-xs font-medium text-accent-text">وضع Llama المباشر</span>}
-          <Button variant="ghost" className="!min-h-9 !px-2 text-sm" onClick={startOver}>جلسة جديدة</Button>
+          {mode === "demo" && <span className="hatch rounded-s px-2 py-1 text-xs font-medium text-unknown">تجربة بأمثلة خيالية</span>}
+          {mode === "live" && <span className="hidden text-xs text-muted sm:inline">{!liveModel || /llama/i.test(liveModel) ? "وضع Llama المباشر" : `النموذج: ${liveModel.split("/").pop()} · احتياطي Llama`}</span>}
+          {confirmReset ? (
+            <span className="flex items-center gap-1 text-sm">
+              <span className="hidden sm:inline">تمسح الجلسة؟</span>
+              <Button variant="primary" className="!min-h-9 !px-2 text-sm" onClick={startOver}>نعم، امسحها</Button>
+              <Button className="!min-h-9 !px-2 text-sm" onClick={() => setConfirmReset(false)}>لا</Button>
+            </span>
+          ) : <Button variant="ghost" className="!min-h-9 !px-2 text-sm" onClick={() => setConfirmReset(true)}>طلب جديد</Button>}
         </div>
       </header>
 
-      <div role="tablist" aria-label="التبديل بين المساعد والمقارنة" className="grid grid-cols-2 border-b border-line bg-surface lg:hidden">
-        {([["assistant", "المساعد"], ["comparison", "المقارنة"]] as const).map(([id, label]) => (
+      <div role="tablist" aria-label="التبديل بين المساعد ومساحة العمل" className="grid grid-cols-2 border-b border-line bg-surface lg:hidden">
+        {([["assistant", "المساعد"], ["comparison", "مساحة العمل"]] as const).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}
             className={`min-h-11 border-b-2 text-sm ${tab === id ? "border-accent font-semibold text-accent-text" : "border-transparent text-muted"}`}>{label}</button>
         ))}
@@ -287,32 +311,38 @@ export function WorkspaceApp() {
           className={tab === "assistant" ? "flex" : "hidden lg:flex"} mode={mode} messages={messages} busy={busy} composer={composer} onComposer={setComposer} inputRef={composerInput} state={state}
           currentKey={fingerprint} onSend={send} onRetry={retry} onGoTo={goTo} pendingSwitch={pendingSwitch} onConfirmSwitch={confirmSwitch} onCancelSwitch={cancelSwitch}
           chooseReply={chooseReply} onChooseReply={(id) => { const t = chooseReply; setChooseReply(null); if (t) runTurn({ text: null, event: { type: "reply", offerId: id as "A", text: t } }); }}
-          onReanalyze={() => runTurn({ text: null, event: { type: "reanalyze" } })}
+          onReanalyze={() => runTurn({ text: null, event: { type: "reanalyze" } })} demoPath={demoPath} onDemoPath={setDemoPath}
         />
 
         <main aria-label="مساحة العمل" className={`${tab === "comparison" ? "block" : "hidden lg:block"} min-w-0 flex-1 overflow-y-auto`}>
-          <nav aria-label="أقسام مساحة العمل" className="sticky top-0 z-10 flex gap-1 overflow-x-auto border-b border-line bg-canvas/95 px-3 py-1.5 backdrop-blur [scrollbar-width:none] sm:px-5">
-            {SECTIONS.map((s) => <button key={s.id} type="button" onClick={() => goTo(s.id)} className="min-h-9 shrink-0 rounded-s px-2.5 text-sm text-muted transition hover:bg-sunken hover:text-ink">{s.label}</button>)}
-          </nav>
-          <div className="space-y-4 p-3 sm:p-5">
-            <RecommendationBanner state={state} decision={decision} onGo={goTo} />
-            <div className={sectionClass("requirements")}>
+          <div role="tablist" aria-label="أقسام مساحة العمل" className="sticky top-0 z-10 flex gap-6 border-b border-line bg-canvas/95 px-4 backdrop-blur sm:px-8">
+            {WORK_TABS.map((t, i) => (
+              <button key={t.id} id={`tab-${t.id}`} type="button" role="tab" aria-selected={workTab === t.id} aria-controls={`panel-${t.id}`} tabIndex={workTab === t.id ? 0 : -1}
+                onClick={() => setWorkTab(t.id)} onKeyDown={(e) => onTabKey(e, i)}
+                className={`font-display -mb-px min-h-12 border-b-[3px] text-lg transition ${workTab === t.id ? "border-accent font-bold text-ink" : "border-transparent text-muted hover:text-ink"}`}>
+                {t.label}{badge(t.id)}
+              </button>
+            ))}
+          </div>
+
+          <div className="mx-auto max-w-5xl px-4 py-5 sm:px-8 sm:py-7">
+            <div id="panel-need" role="tabpanel" aria-labelledby="tab-need" hidden={workTab !== "need"} className="space-y-5">
               <RequirementsSection state={state} conflicts={conflicts} pendingSwitch={pendingSwitch} onRequirements={setRequirements} onEditDone={requirementsEdited} onResolveConflict={resolveConflict}
                 onRequestSwitch={(to) => setPendingSwitch({ to, text: null })} onConfirmSwitch={confirmSwitch} onCancelSwitch={cancelSwitch} askAssistant={() => focusAssistant()} />
+              <RfqSection state={state} draft={rfq} busy={busy} onGenerate={(b) => { append({ role: "user", text: "جهّز طلب عرض سعر", targets: [] }); runTurn({ text: null, event: { type: "rfq", includeBudget: b } }); }} onEdit={(m) => setRfq((d) => d && { ...d, message: m })} />
             </div>
-            <div className={sectionClass("offers")}>
-              <OffersSection state={state} failed={failed} busy={busy} onOffer={updateOffer} onConfirm={confirmOffer} onWhy={askWhy} onReply={(id) => focusAssistant({ kind: "reply", offerId: id })}
+            <div id="panel-offers" role="tabpanel" aria-labelledby="tab-offers" hidden={workTab !== "offers"} className="space-y-8">
+              <OffersSection state={state} failed={failed} busy={busy} onOffer={updateOffer} onConfirm={confirmOffer} onWhy={askWhy}
                 onEditOpen={() => { offerEditBefore.current = currentDecision(stateRef.current); }} onEditDone={offerEdited} onPaste={() => focusAssistant({ kind: "offer" })} onRetry={retryOffer} onManual={manualOffer} tick={tick} />
-            </div>
-            <div className={sectionClass("comparison")}><ComparisonSection key={q ?? 0} state={state} decision={decision} onReply={(id) => focusAssistant({ kind: "reply", offerId: id })} /></div>
-            <div className={sectionClass("scenarios")}><ScenarioSection state={state} onScenario={setScenario} onAdopt={adoptScenario} onRequirements={setRequirements} onPriority={setPriority} onOrderDate={setOrderDate} /></div>
-            <div className={sectionClass("clarify")}>
               <ClarifySection state={state} proposals={proposals} busy={busy} onSendReply={(id, t) => { const o = stateRef.current.offers.find((x) => x.id === id); append({ role: "user", text: `رد ${o ? offerName(o) : ""}: ${t}`, targets: [] }); runTurn({ text: null, event: { type: "reply", offerId: id as "A", text: t } }); }}
                 onApply={applyProposal} onCancel={(p) => setProposals((all) => all.filter((x) => x.replyId !== p.replyId))} />
             </div>
-            <div className={sectionClass("rfq")}><RfqSection state={state} draft={rfq} busy={busy} onGenerate={(b) => { append({ role: "user", text: "جهّز طلب عرض سعر", targets: [] }); runTurn({ text: null, event: { type: "rfq", includeBudget: b } }); }} onEdit={(m) => setRfq((d) => d && { ...d, message: m })} /></div>
-            {mode === "demo" && <Note tone="warn">كل الموردين والأسعار والردود في وضع التجربة مختلقة للتوضيح.</Note>}
-            <p className="pb-4 text-xs text-muted"><span dir="ltr">Built with Llama</span> · الأرقام والترتيب تحسبها قواعد التطبيق، ولا أرسل شيئًا للموردين ولا أنفذ طلبات شراء.</p>
+            <div id="panel-decision" role="tabpanel" aria-labelledby="tab-decision" hidden={workTab !== "decision"} className="space-y-8">
+              <DecisionHero state={state} decision={decision} onGo={goTo} />
+              <ScenarioSection state={state} decision={decision} onScenario={setScenario} onAdopt={adoptScenario} onRequirements={setRequirements} onPriority={setPriority} onOrderDate={setOrderDate} />
+              <ComparisonSection key={q ?? 0} state={state} decision={decision} onReply={(id) => focusAssistant({ kind: "reply", offerId: id })} />
+            </div>
+            <p className="mt-10 text-xs text-muted"><span dir="ltr">Built with Llama</span> · الأرقام والترتيب من قواعد التطبيق، ولا أرسل شيئًا للموردين ولا أنفذ طلبات شراء.{mode === "demo" && " كل بيانات هذا المثال خيالية."}</p>
           </div>
         </main>
       </div>

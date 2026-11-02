@@ -4,7 +4,7 @@ import { rfqGaps } from "@/domain/rfq";
 import { draftRfq } from "@/llm/service";
 import { handle } from "../_lib";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const Input = z.object({ requirements: RequirementsSchema, includeBudget: z.boolean() });
 

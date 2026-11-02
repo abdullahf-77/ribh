@@ -141,3 +141,40 @@ describe("notes from the model do not hold back clear offers", () => {
     expect(resolveOffer(offerWith("contradiction", null)).openAmbiguities).toHaveLength(1);
   });
 });
+
+describe("found by running Qwen on the live site", () => {
+  it("treats a carton price without a lot quantity as per package", () => {
+    const text = "الكرتون ٢٤٠٠ منديل بـ ١٥٠ ريال";
+    const out = validateRawOffer(rawOffer({ priceAmount: v(150, "١٥٠ ريال"), priceBasis: v("quoted_lot", "١٥٠ ريال"), packageLevels: v([{ label: "كرتون", count: 2400 }], "الكرتون ٢٤٠٠ منديل") }), "offer:A", text, [], "napkins");
+    expect(out.fields.priceBasis.value).toBe("per_package");
+  });
+  it("keeps a real lot that states its quantity", () => {
+    const text = "٢٥٠٠ كوب بمبلغ ١٤٠٠ ريال، الكرتون ٥٠٠ كوب";
+    const out = validateRawOffer(rawOffer({ priceBasis: v("quoted_lot", "بمبلغ ١٤٠٠ ريال"), quotedQuantity: v(2500, "٢٥٠٠ كوب"), packageLevels: v([{ label: "كرتون", count: 500 }], "الكرتون ٥٠٠ كوب") }), "offer:A", text, [], "cups");
+    expect(out.fields.priceBasis.value).toBe("quoted_lot");
+  });
+  it("accepts a ply count given as a word", () => {
+    const out = validateRawOffer(rawOffer({ specs: [{ key: "ply", value: "طبقتين", quote: "طبقتين" }] }), "offer:A", "منديل طبقتين", [], "napkins");
+    expect(out.fields["spec:ply"].value).toBe(2);
+  });
+  it("replaces a question that names no field", async () => {
+    host({ chat_plan: plan({ reply: "كم عدد المناديل؟", asks: [], requirementUpdates: rawRequirements({ category: { value: "napkins", quote: null }, quantity: v(10000, "١٠٠٠٠ منديل") }) }) });
+    const r = await turn("أبي ١٠٠٠٠ منديل", initialState(TODAY));
+    expect(r.reply).not.toContain("كم عدد المناديل");
+    expect(r.replySource).toBe("computed");
+  });
+});
+
+describe("a model reply that re-asks something known", () => {
+  it("is replaced, even when its field list does not admit it", async () => {
+    host({ chat_plan: plan({ reply: "كم عدد المناديل اللي تحتاجها؟ ومتى تحتاجها؟", asks: ["requiredDate"], requirementUpdates: rawRequirements({ quantity: v(10000, "١٠٠٠٠ منديل") }) }) });
+    const r = await turn("أبي ١٠٠٠٠ منديل", { ...initialState(TODAY), requirements: { ...emptyRequirements(), category: "napkins" } });
+    expect(r.reply).not.toContain("كم عدد");
+    expect(r.replySource).toBe("computed");
+  });
+  it("is kept when the question is still open", async () => {
+    host({ chat_plan: plan({ reply: "متى تحتاجها؟", asks: ["requiredDate"], requirementUpdates: rawRequirements({ quantity: v(10000, "١٠٠٠٠ منديل") }) }) });
+    const r = await turn("أبي ١٠٠٠٠ منديل", { ...initialState(TODAY), requirements: { ...emptyRequirements(), category: "napkins" } });
+    expect(r.reply).toBe("متى تحتاجها؟");
+  });
+});

@@ -67,6 +67,8 @@ export type TurnResponse = {
   mode: "live" | "demo";
   reply: string;
   replySource: ReplySource;
+  /** The model that actually answered this turn, when one did. */
+  servedModel?: string | null;
   blocks: Block[];
   patch: {
     requirements?: Requirements;

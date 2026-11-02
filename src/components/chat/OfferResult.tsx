@@ -9,7 +9,7 @@ import { deterministicMessage, offerQuestions } from "@/domain/questions";
 import type { Requirements } from "@/domain/schemas";
 import { formatDate } from "@/lib/api";
 import { SourceBlock } from "../OfferReview";
-import { Button, Card, Chip, CopyButton, StatusChip } from "../ui";
+import { Button, Chip, CopyButton, StatusChip } from "../ui";
 
 export const categoryCopy = {
   confirmed: { label: "مؤكد مناسب", tone: "meets" as const },
@@ -56,9 +56,9 @@ function CostBar({ cost }: { cost: CostResult }) {
 }
 
 const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
-    <dt className="text-muted">{label}</dt>
-    <dd className="text-end font-medium">{children}</dd>
+  <div className="leader">
+    <dt>{label}</dt>
+    <dd>{children}</dd>
   </div>
 );
 
@@ -89,9 +89,9 @@ export function OfferResult({ e, offer, isWinner, requirements, onReply }: {
   const message = edited ?? deterministicMessage(e.label, questions);
 
   return (
-    <Card className={`!p-4 ${isWinner ? "ring-2 ring-green" : ""}`}>
+    <article className={`sheet p-4 ${isWinner ? "ring-2 ring-green" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-semibold" dir="auto">{e.label}</h4>
+        <h4 className="font-display text-lg font-bold" dir="auto">{e.label}</h4>
         <div className="flex flex-wrap gap-1">
           {e.rank != null && <Chip tone="accent">الترتيب {e.rank}</Chip>}
           <Chip tone={cat.tone}>{cat.label}</Chip>
@@ -101,7 +101,7 @@ export function OfferResult({ e, offer, isWinner, requirements, onReply }: {
       <div className="mt-2">
         <p className="text-xs text-muted">{c.complete ? "ما ستدفعه" : "مبلغ معروف جزئيًا"}</p>
         {c.totalHalalas != null
-          ? <p className="text-xl font-bold">{sar(c.totalHalalas)}</p>
+          ? <p className="price text-end text-xl font-semibold">{sar(c.totalHalalas)}</p>
           : c.knownSubtotalHalalas != null
             ? <p className="text-xl font-bold">{sar(c.knownSubtotalHalalas)} <span className="text-sm font-medium text-unknown">+ غير معروف</span></p>
             : <p className="text-lg font-bold text-unknown">لا يمكن الحساب بعد</p>}
@@ -116,7 +116,7 @@ export function OfferResult({ e, offer, isWinner, requirements, onReply }: {
       )}
       {c.missing.length > 0 && <p className="mt-1 text-sm text-unknown">ينقص: {c.missing.map(missingText).join("، ")}</p>}
 
-      <dl className="mt-2 divide-y divide-line border-t border-line">
+      <dl className="mt-2 border-t border-line pt-1">
         <Row label="كمية الشراء">{c.purchaseQty != null ? `${qty(c.purchaseQty)} وحدة${c.packages != null ? ` (${counted(c.packages, "عبوة", "عبوات")})` : ""}` : <Unknown />}</Row>
         <Row label="الفائض عن حاجتك">{c.excess != null ? `${qty(c.excess)} وحدة` : <Unknown />}</Row>
         <Row label="تكلفة الوحدة شاملة كل الرسوم">{c.comparableUnitSar ? `${c.comparableUnitSar} ريال` : <Unknown />}</Row>
@@ -154,6 +154,6 @@ export function OfferResult({ e, offer, isWinner, requirements, onReply }: {
           <div className="mt-2"><CopyButton text={message} label="انسخ الرسالة" /></div>
         </div>
       )}
-    </Card>
+    </article>
   );
 }

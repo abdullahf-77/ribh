@@ -87,6 +87,9 @@ export const specDef = (key: string, category: CategoryId | null = null): SpecDe
 
 export type SpecValue = string | number;
 
+/** Models sometimes return a count as the word the buyer used. */
+const SPOKEN_COUNTS: Record<string, number> = { "طبقة": 1, "طبقة واحدة": 1, "طبقتين": 2, "طبقتان": 2, "ثلاث طبقات": 3, "٣ طبقات": 3 };
+
 /** A validated schema per category: only its own keys, each with the right type and allowed values. */
 export function specSchema(category: CategoryId) {
   const shape: Record<string, z.ZodType> = {};
@@ -104,7 +107,8 @@ export function coerceSpec(def: SpecDef, raw: string): SpecValue | null {
   if (!value) return null;
   if (def.kind === "number") {
     const n = Number(foldDigits(value).replace(/,/g, ""));
-    return Number.isFinite(n) && n > 0 ? n : null;
+    if (Number.isFinite(n) && n > 0) return n;
+    return SPOKEN_COUNTS[value] ?? null;
   }
   if (def.kind === "enum") return Object.keys(def.options!).includes(value) ? value : null;
   return value.slice(0, 120);
