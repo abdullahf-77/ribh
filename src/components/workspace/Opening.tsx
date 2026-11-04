@@ -50,7 +50,7 @@ export function Opening({ mode, onSend, onDemo }: { mode: "live" | "demo" | null
           <div className="rise">
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/80 px-3 py-1 text-sm font-medium text-kraft-text"><CupIcon className="size-4" /> مساعد مشتريات ذكي للمقاهي</span>
             <h1 className="font-display mt-4 text-4xl leading-[1.35] font-bold tracking-tight sm:text-5xl sm:leading-[1.3] xl:text-[3.4rem]">
-              قبل ما تدفع،<br /><span className="sm:whitespace-nowrap">اعرف أي عرض <span className="relative inline-block text-accent-text">يناسبك<svg viewBox="0 0 120 12" aria-hidden className="absolute inset-x-0 -bottom-1 h-3 w-full text-green"><path d="M3 8c30-6 80-8 114-3" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></svg></span>.</span>
+              قبل ما تدفع،<br /><span className="sm:whitespace-nowrap">اعرف أي عرض <span className="relative inline-block text-accent-text">يناسبك<svg viewBox="0 0 120 12" aria-hidden className="absolute inset-x-0 top-full mt-1 h-2.5 w-full text-green"><path d="M3 8c30-6 80-8 114-3" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" /></svg></span>.</span>
             </h1>
             <p className="mt-4 max-w-xl text-lg text-muted">ألصق عروض موردي الأكواب والأغطية والأكياس والمناديل والعبوات كما وصلتك، ورِبح يحسب لك التكلفة الفعلية ويبيّن الأنسب والناقص.</p>
 
