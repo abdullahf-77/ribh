@@ -15,6 +15,7 @@ import { applyReplyProposal, ConflictChoice, ReplyProposal } from "@/domain/repl
 import type { Requirements } from "@/domain/schemas";
 import { ApiError, post, todayIso } from "@/lib/api";
 import { BrandLogo } from "../Brand";
+import { CartIcon, CheckIcon, SheetIcon } from "../Cafe";
 import { Button } from "../ui";
 import { ChatPanel, Composer, Message } from "./ChatPanel";
 import { Opening } from "./Opening";
@@ -23,6 +24,8 @@ import { ClarifySection, ComparisonSection, ConflictItem, DecisionHero, FailedOf
 const SECTION_FOR: Partial<Record<Block["type"], SectionId>> = {
   requirements: "requirements", req_conflict: "requirements", offer: "offers", offer_failed: "offers", rfq: "rfq", comparison: "comparison", discount: "scenarios", proposal: "clarify",
 };
+
+const TAB_ICON = { need: CartIcon, offers: SheetIcon, decision: CheckIcon } as const;
 
 export function WorkspaceApp() {
   const [mode, setMode] = useState<"live" | "demo" | null>(null);
@@ -284,6 +287,7 @@ export function WorkspaceApp() {
 
   return (
     <div className="flex h-dvh flex-col">
+      <div className="band shrink-0" />
       <header className="flex items-center justify-between gap-2 border-b border-line bg-surface px-3 py-1.5 sm:px-4">
         <BrandLogo className="h-9 w-auto shrink-0" />
         <div className="flex items-center gap-2">
@@ -314,13 +318,13 @@ export function WorkspaceApp() {
           onReanalyze={() => runTurn({ text: null, event: { type: "reanalyze" } })} demoPath={demoPath} onDemoPath={setDemoPath}
         />
 
-        <main aria-label="مساحة العمل" className={`${tab === "comparison" ? "block" : "hidden lg:block"} min-w-0 flex-1 overflow-y-auto`}>
-          <div role="tablist" aria-label="أقسام مساحة العمل" className="sticky top-0 z-10 flex gap-6 border-b border-line bg-canvas/95 px-4 backdrop-blur sm:px-8">
+        <main aria-label="مساحة العمل" className={`${tab === "comparison" ? "block" : "hidden lg:block"} desk min-w-0 flex-1 overflow-y-auto`}>
+          <div role="tablist" aria-label="أقسام مساحة العمل" className="sticky top-0 z-10 flex gap-6 border-b border-line bg-surface/90 px-4 backdrop-blur sm:px-8">
             {WORK_TABS.map((t, i) => (
               <button key={t.id} id={`tab-${t.id}`} type="button" role="tab" aria-selected={workTab === t.id} aria-controls={`panel-${t.id}`} tabIndex={workTab === t.id ? 0 : -1}
                 onClick={() => setWorkTab(t.id)} onKeyDown={(e) => onTabKey(e, i)}
                 className={`font-display -mb-px min-h-12 border-b-[3px] text-lg transition ${workTab === t.id ? "border-accent font-bold text-ink" : "border-transparent text-muted hover:text-ink"}`}>
-                {t.label}{badge(t.id)}
+                {(() => { const I = TAB_ICON[t.id]; return <I className="me-1.5 inline size-5 align-[-0.2em]" />; })()}{t.label}{badge(t.id)}
               </button>
             ))}
           </div>

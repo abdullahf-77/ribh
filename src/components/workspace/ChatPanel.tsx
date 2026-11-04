@@ -82,7 +82,7 @@ export function ChatPanel({ className, mode, messages, busy, composer, onCompose
         <div className="space-y-4">
           {messages.map((m) => m.role === "user" ? (
             <div key={m.id} className="flex justify-start">
-              <div dir="auto" className="max-h-48 max-w-[88%] overflow-y-auto whitespace-pre-wrap rounded-m rounded-tr-none bg-accent px-3 py-2 text-sm text-accent-ink">{m.text}</div>
+              <div dir="auto" className="max-h-48 max-w-[88%] overflow-y-auto whitespace-pre-wrap rounded-m rounded-tr-sm bg-accent px-3.5 py-2 text-sm text-accent-ink shadow-1">{m.text}</div>
             </div>
           ) : (
             <div key={m.id} className="rise flex gap-2">
@@ -96,7 +96,7 @@ export function ChatPanel({ className, mode, messages, busy, composer, onCompose
                   </div>
                 ) : (
                   <>
-                    <p dir="auto" className="whitespace-pre-wrap text-[15px] leading-7">{m.text}</p>
+                    <p dir="auto" className="whitespace-pre-wrap rounded-m rounded-tl-sm bg-sunken px-3.5 py-2 text-[15px] leading-7">{m.text}</p>
                     <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted">
                       {m.source && <span>{sourceLabel(m)}</span>}
                       {m.targets.map((t) => <button key={t} type="button" onClick={() => onGoTo(t)} className="min-h-7 text-accent-text underline underline-offset-2">افتح {SECTION_LABEL[t]}</button>)}
@@ -133,8 +133,8 @@ export function ChatPanel({ className, mode, messages, busy, composer, onCompose
               <button type="button" disabled={busy} onClick={() => submit(unsupportedExample, { kind: "chat" })} className="hatch min-h-9 shrink-0 rounded-s px-2.5 font-medium text-unknown disabled:opacity-50">منتج غير مدعوم</button>
             </>
           )}
-          {state.offers.length < 3 && composer.kind === "chat" && state.requirements.category && <button type="button" onClick={() => { onComposer({ kind: "offer" }); inputRef.current?.focus(); }} className="min-h-9 shrink-0 rounded-s border border-line px-2.5">ألصق عرض مورد</button>}
-          {unconfirmed > 0 && <button type="button" onClick={() => onGoTo("offers")} className="min-h-9 shrink-0 rounded-s border border-line px-2.5">أكّد العروض ({unconfirmed})</button>}
+          {state.offers.length < 3 && composer.kind === "chat" && state.requirements.category && <button type="button" onClick={() => { onComposer({ kind: "offer" }); inputRef.current?.focus(); }} className="chip-pick !min-h-9 shrink-0 !text-xs">ألصق عرض مورد</button>}
+          {unconfirmed > 0 && <button type="button" onClick={() => onGoTo("offers")} className="chip-pick !min-h-9 shrink-0 !text-xs">أكّد العروض ({unconfirmed})</button>}
         </div>
         {composerLabel && (
           <div className="mb-1 flex items-center gap-2 text-xs">

@@ -4,28 +4,33 @@
    Text variants of green and amber are darker than the brand swatches so they pass WCAG AA on pale surfaces. */
 :root {
   color-scheme: light;
-  --c-canvas: #f7f9fc;
-  --c-surface: #ffffff;
-  --c-sunken: #eef2f6;
-  --c-ink: #153350;
-  --c-muted: #536b80;
-  --c-line: #e7edf2;
-  --c-field-line: #7b8fa1;
+  /* Warm café surfaces under the logo's blue and green: cream paper, kraft packaging, espresso ink. */
+  --c-canvas: #f8f3ec;
+  --c-surface: #fffdfa;
+  --c-sunken: #f3ece2;
+  --c-ink: #1c2a3a;
+  --c-muted: #66594c;
+  --c-line: #eae0d3;
+  --c-field-line: #958574;
   --c-accent: #2864db;
   --c-accent-ink: #ffffff;
-  --c-accent-soft: #eef4ff;
+  --c-accent-soft: #edf2fd;
   --c-accent-text: #2159c8;
   --c-green: #149568;
   --c-meets: #0b6b4a;
-  --c-meets-soft: #eaf6f0;
+  --c-meets-soft: #e8f5ee;
   --c-not: #a8261d;
   --c-not-soft: #fbe9e7;
   --c-unknown: #6f4b00;
-  --c-unknown-soft: #fbf1da;
+  --c-unknown-soft: #fbf0d8;
   --c-mark: #ffe9a8;
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --shadow-1: 0 1px 2px rgb(21 51 80 / 0.05), 0 2px 10px rgb(21 51 80 / 0.04);
+  --c-kraft: #c08d5c;
+  --c-kraft-soft: #f4e7d6;
+  --c-kraft-text: #7a5230;
+  --radius-s: 10px;
+  --radius-m: 16px;
+  --shadow-1: 0 1px 2px rgb(84 58 32 / 0.05), 0 4px 14px -4px rgb(84 58 32 / 0.08);
+  --shadow-2: 0 1px 0 rgb(84 58 32 / 0.04), 0 18px 40px -18px rgb(84 58 32 / 0.28);
   --motion: 140ms ease-out;
 }
 
@@ -48,9 +53,13 @@
   --color-not-soft: var(--c-not-soft);
   --color-unknown: var(--c-unknown);
   --color-unknown-soft: var(--c-unknown-soft);
+  --color-kraft: var(--c-kraft);
+  --color-kraft-soft: var(--c-kraft-soft);
+  --color-kraft-text: var(--c-kraft-text);
   --radius-s: var(--radius-s);
   --radius-m: var(--radius-m);
   --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
   --font-sans: var(--font-brand), Tahoma, sans-serif;
   --font-display: var(--font-document), var(--font-brand), serif;
   --font-figures: var(--font-figures-mono), ui-monospace, monospace;
@@ -81,7 +90,7 @@ body {
   padding: 0.5rem 0.7rem;
   min-height: 2.6rem;
 }
-.field:focus { border-color: var(--c-accent); outline: none; box-shadow: 0 0 0 2px var(--c-accent-soft); }
+.field:focus { border-color: var(--c-accent); outline: none; box-shadow: 0 0 0 3px var(--c-accent-soft); }
 .field[aria-invalid="true"] { border-color: var(--c-not); }
 
 mark.evidence { background: var(--c-mark); color: inherit; border-radius: 3px; padding: 0 2px; }
@@ -95,8 +104,8 @@ mark.evidence { background: var(--c-mark); color: inherit; border-radius: 3px; p
   position: relative;
   background: var(--c-surface);
   border: 1px solid var(--c-line);
-  border-radius: var(--radius-s);
-  box-shadow: 0 1px 0 rgb(21 51 80 / 0.04), 0 6px 18px -10px rgb(21 51 80 / 0.22);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-2);
 }
 .sheet::before {
   content: "";
@@ -144,3 +153,27 @@ details > summary::-webkit-details-marker { display: none; }
 .fold[open] > summary::after { content: "−"; }
 
 @media (prefers-reduced-motion: reduce) { .rise, .stamp { animation: none; } .example { transition: none; } }
+
+/* The desk the documents sit on: cream paper with a faint warm light from the top corner. */
+.desk {
+  background:
+    radial-gradient(60rem 28rem at 100% -10%, rgb(244 231 214 / 0.9), transparent 70%),
+    radial-gradient(40rem 22rem at 0% 0%, rgb(237 242 253 / 0.7), transparent 70%),
+    var(--c-canvas);
+}
+
+/* A thin strip of kraft and brand blue, like the band on a takeaway cup. */
+.band { background: linear-gradient(90deg, var(--c-accent) 0 22%, var(--c-kraft) 22% 100%); height: 3px; }
+
+.chip-pick {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.5rem; padding: 0.35rem 0.85rem;
+  border: 1px solid var(--c-line); border-radius: 999px; background: var(--c-surface); font-size: 0.875rem; color: var(--c-ink);
+  transition: background var(--motion), border-color var(--motion), transform var(--motion);
+}
+.chip-pick:hover { background: var(--c-kraft-soft); border-color: color-mix(in srgb, var(--c-kraft) 45%, transparent); }
+.chip-pick:active { transform: translateY(1px); }
+.chip-pick svg { color: var(--c-kraft-text); }
+
+.float { animation: float 7s ease-in-out infinite; }
+@keyframes float { 50% { transform: translateY(-6px); } }
+@media (prefers-reduced-motion: reduce) { .float { animation: none; } .chip-pick { transition: none; } }

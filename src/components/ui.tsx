@@ -7,8 +7,8 @@ type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "pri
 
 export function Button({ variant = "secondary", busy, children, className = "", disabled, ...rest }: BtnProps) {
   const look = {
-    primary: "bg-accent text-accent-ink hover:brightness-110",
-    secondary: "bg-surface text-ink border border-line hover:bg-sunken",
+    primary: "bg-accent text-accent-ink shadow-[0_8px_18px_-10px_rgb(40_100_219/0.9)] hover:brightness-110 active:translate-y-px",
+    secondary: "bg-surface text-ink border border-line shadow-1 hover:bg-kraft-soft",
     ghost: "text-accent-text hover:bg-accent-soft",
   }[variant];
   return (
