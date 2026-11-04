@@ -1,11 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans_Arabic, Noto_Naskh_Arabic } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans_Arabic, Readex_Pro } from "next/font/google";
 import { brand } from "@/config/brand";
 import "./globals.css";
 
 const font = IBM_Plex_Sans_Arabic({ subsets: ["arabic", "latin"], weight: ["400", "500", "600", "700"], variable: "--font-brand", display: "swap" });
 
-const documentFont = Noto_Naskh_Arabic({ subsets: ["arabic"], weight: ["600", "700"], variable: "--font-document", display: "swap" });
+const documentFont = Readex_Pro({ subsets: ["arabic", "latin"], weight: ["500", "600", "700"], variable: "--font-document", display: "swap" });
 const figures = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-figures-mono", display: "swap" });
 
 export const metadata: Metadata = {
